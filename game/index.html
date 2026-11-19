@@ -3,110 +3,106 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<link rel="icon" href="data:,">
 <title>Neon Bay — an original open-world crime game</title>
+<link rel="icon" href="data:,">
 <style>
-  * { box-sizing: border-box; margin: 0; padding: 0; }
-  html, body { width: 100%; height: 100%; overflow: hidden; background: #0a0a14;
-    font-family: "Segoe UI", Arial, sans-serif; color: #e8e8f0; }
-  #game { position: fixed; inset: 0; }
-  #game canvas { display: block; }
-  .panel { background: rgba(10, 10, 22, 0.72); border: 1px solid rgba(0, 229, 255, 0.35);
-    border-radius: 8px; padding: 8px 12px; }
-  #hudTop { position: fixed; top: 12px; left: 12px; right: 12px; display: flex;
-    justify-content: space-between; align-items: flex-start; pointer-events: none; z-index: 5; }
-  #money { font-size: 26px; font-weight: 700; color: #7cff5e; letter-spacing: 1px; }
-  #stars { font-size: 24px; letter-spacing: 3px; margin-top: 2px; }
-  #clockBox { text-align: right; }
-  #clock { font-size: 22px; font-weight: 700; }
-  #day { font-size: 12px; color: #9a9ab8; letter-spacing: 2px; }
-  #objective { position: fixed; top: 12px; left: 50%; transform: translateX(-50%);
-    font-size: 15px; font-weight: 600; color: #ffd23e; z-index: 5; pointer-events: none;
-    text-shadow: 0 1px 4px #000; max-width: 46vw; text-align: center; }
-  #message { position: fixed; top: 64px; left: 50%; transform: translateX(-50%);
-    font-size: 16px; color: #fff; background: rgba(10,10,22,0.8); border: 1px solid rgba(255,210,62,0.5);
-    border-radius: 8px; padding: 8px 16px; z-index: 6; opacity: 0; transition: opacity 0.4s;
-    pointer-events: none; max-width: 70vw; text-align: center; }
-  #minimapBox { position: fixed; left: 12px; bottom: 12px; z-index: 5; pointer-events: none; }
-  #minimap { display: block; border-radius: 8px; border: 1px solid rgba(0,229,255,0.4); }
-  #healthWrap { margin-top: 6px; width: 168px; height: 12px; background: rgba(255,255,255,0.15);
-    border-radius: 6px; overflow: hidden; }
-  #healthFill { height: 100%; width: 100%; background: #37e08b; transition: width 0.2s; }
-  #speed { position: fixed; right: 16px; bottom: 16px; font-size: 30px; font-weight: 800;
-    color: #00e5ff; text-shadow: 0 2px 6px #000; z-index: 5; pointer-events: none; }
-  #crosshair { position: fixed; left: 50%; top: 50%; width: 18px; height: 18px;
-    margin: -9px 0 0 -9px; z-index: 5; pointer-events: none; display: none; }
-  #crosshair::before, #crosshair::after { content: ""; position: absolute; background: #fff; }
-  #crosshair::before { left: 8px; top: 0; width: 2px; height: 18px; }
-  #crosshair::after { left: 0; top: 8px; width: 18px; height: 2px; }
-  #damage { position: fixed; inset: 0; background: radial-gradient(ellipse at center,
-    transparent 55%, rgba(255, 30, 60, 0.55) 100%); opacity: 0; pointer-events: none;
-    z-index: 8; transition: opacity 0.15s; }
-  .overlay { position: fixed; inset: 0; display: none; align-items: center; justify-content: center;
-    flex-direction: column; background: rgba(6, 6, 18, 0.82); z-index: 10; text-align: center; }
-  .overlay h1 { font-size: 72px; letter-spacing: 6px; color: #00e5ff;
-    text-shadow: 0 0 24px #00e5ff, 0 0 60px #ff2d78; }
-  .overlay h1 span { color: #ff2d78; text-shadow: 0 0 24px #ff2d78, 0 0 60px #00e5ff; }
-  .overlay p { margin: 10px 0 4px; font-size: 16px; color: #c8c8e0; max-width: 560px; line-height: 1.5; }
-  .btn { pointer-events: auto; cursor: pointer; margin-top: 18px; padding: 12px 34px; font-size: 18px;
-    font-weight: 700; letter-spacing: 2px; color: #061018; background: #00e5ff; border: none;
-    border-radius: 8px; box-shadow: 0 0 18px rgba(0,229,255,0.6); }
-  .btn:hover { background: #7cff5e; box-shadow: 0 0 18px rgba(124,255,94,0.6); }
-  .btn.ghost { background: transparent; color: #00e5ff; border: 1px solid #00e5ff; box-shadow: none; }
-  .controls { margin-top: 20px; font-size: 13px; color: #9a9ab8; line-height: 1.8; }
-  .controls b { color: #e8e8f0; }
-  #missionList { position: fixed; left: 50%; top: 50%; transform: translate(-50%, -50%);
-    z-index: 9; display: none; min-width: 420px; max-width: 80vw; }
-  #missionList h3 { color: #ffd23e; letter-spacing: 2px; margin-bottom: 8px; }
-  #missionList div { font-size: 15px; line-height: 1.9; }
-  #busted h1 { color: #ff2d55; text-shadow: 0 0 24px #ff2d55; }
+  html, body { margin: 0; padding: 0; width: 100%; height: 100%; overflow: hidden; background: #0b1020; font-family: system-ui, -apple-system, "Segoe UI", sans-serif; }
+  #app { position: fixed; inset: 0; }
+  #app canvas { display: block; }
+  .chip { background: rgba(10, 8, 24, 0.62); border: 1px solid rgba(255, 255, 255, 0.22); border-radius: 10px; color: #fff; }
+  #hud { position: fixed; inset: 0; pointer-events: none; display: none; z-index: 5; }
+  #hud.on { display: block; }
+  #topbar { position: absolute; top: 12px; left: 12px; right: 12px; display: flex; justify-content: space-between; align-items: flex-start; }
+  #money-box { padding: 8px 14px; font-size: 22px; font-weight: 800; letter-spacing: 0.5px; }
+  #money-box small { display: block; font-size: 11px; font-weight: 600; letter-spacing: 2px; color: #ffd23f; }
+  #stars { font-size: 26px; letter-spacing: 3px; color: #ffd23f; text-shadow: 0 2px 8px rgba(0,0,0,0.7); padding: 4px 12px; }
+  #clock-box { padding: 8px 14px; font-size: 18px; font-weight: 700; text-align: right; }
+  #clock-box small { display: block; font-size: 11px; font-weight: 600; letter-spacing: 2px; color: #9fd8ff; }
+  #objective { position: absolute; top: 76px; left: 12px; max-width: 420px; padding: 10px 14px; font-size: 15px; line-height: 1.45; }
+  #objective b { color: #ffd23f; }
+  #objective .mara { color: #ff8fb8; font-weight: 700; }
+  #health-wrap { position: absolute; left: 12px; bottom: 14px; width: 240px; padding: 10px 12px; }
+  #health-wrap .label { font-size: 11px; font-weight: 700; letter-spacing: 2px; color: #fff; margin-bottom: 6px; }
+  #health-bar { height: 12px; background: rgba(255,255,255,0.18); border-radius: 6px; overflow: hidden; }
+  #health-fill { height: 100%; width: 100%; background: linear-gradient(90deg, #37d67a, #9be15d); border-radius: 6px; }
+  #speed-box { position: absolute; right: 12px; bottom: 14px; padding: 8px 14px; font-size: 20px; font-weight: 800; text-align: right; }
+  #speed-box small { display: block; font-size: 11px; font-weight: 600; letter-spacing: 2px; color: #9fd8ff; }
+  #minimap-wrap { position: absolute; right: 12px; top: 76px; padding: 6px; }
+  #minimap { display: block; border-radius: 6px; }
+  #minimap-wrap .label { font-size: 10px; font-weight: 700; letter-spacing: 2px; color: #fff; text-align: center; margin-top: 4px; }
+  #crosshair { position: absolute; left: 50%; top: 50%; width: 22px; height: 22px; margin: -11px 0 0 -11px; display: none; }
+  #crosshair.on { display: block; }
+  #crosshair::before, #crosshair::after { content: ""; position: absolute; background: #fff; box-shadow: 0 0 4px rgba(0,0,0,0.9); }
+  #crosshair::before { left: 10px; top: 0; width: 2px; height: 22px; }
+  #crosshair::after { left: 0; top: 10px; width: 22px; height: 2px; }
+  #toasts { position: absolute; top: 150px; left: 50%; transform: translateX(-50%); width: min(560px, 90vw); text-align: center; }
+  .toast { display: inline-block; margin: 4px auto; padding: 9px 16px; font-size: 15px; line-height: 1.4; }
+  .toast .mara { color: #ff8fb8; font-weight: 800; }
+  #banner { position: absolute; top: 34%; left: 50%; transform: translate(-50%, -50%); padding: 16px 30px; font-size: 30px; font-weight: 900; letter-spacing: 3px; color: #ffd23f; display: none; text-align: center; }
+  #banner small { display: block; font-size: 15px; letter-spacing: 1px; color: #fff; font-weight: 600; margin-top: 6px; }
+  #banner.on { display: block; }
+  #hint { position: absolute; bottom: 14px; left: 50%; transform: translateX(-50%); padding: 7px 14px; font-size: 13px; color: #fff; white-space: nowrap; }
+  .overlay { position: fixed; inset: 0; display: flex; align-items: center; justify-content: center; background: linear-gradient(180deg, rgba(8, 10, 30, 0.25) 0%, rgba(8, 10, 30, 0.72) 100%); z-index: 10; }
+  .overlay.hidden { display: none; }
+  .panel { max-width: 640px; margin: 0 16px; padding: 34px 40px; text-align: center; background: rgba(10, 8, 24, 0.78); border: 1px solid rgba(255, 210, 63, 0.45); border-radius: 16px; color: #fff; }
+  .panel h1 { margin: 0 0 4px; font-size: 56px; letter-spacing: 6px; color: #ffd23f; text-shadow: 0 0 24px rgba(255, 46, 136, 0.65); }
+  .panel h2 { margin: 0 0 18px; font-size: 15px; font-weight: 600; letter-spacing: 3px; color: #9fd8ff; }
+  .panel p { font-size: 15px; line-height: 1.6; color: #e8e8f2; margin: 8px 0; }
+  .panel .controls { font-size: 14px; line-height: 1.9; color: #cfd4ea; text-align: left; display: inline-block; margin: 10px 0 4px; }
+  .panel .controls b { color: #fff; }
+  .big-btn { pointer-events: auto; cursor: pointer; margin-top: 18px; padding: 13px 34px; font-size: 18px; font-weight: 800; letter-spacing: 2px; color: #14081f; background: linear-gradient(90deg, #ffd23f, #ff5da2); border: none; border-radius: 10px; }
+  .big-btn:hover { filter: brightness(1.1); }
+  .big-btn.ghost { background: transparent; color: #fff; border: 1px solid rgba(255,255,255,0.5); margin-left: 10px; }
+  #end-screen .panel h1 { font-size: 44px; }
 </style>
 <script type="importmap">
-{ "imports": { "three": "./vendor/three.min.js" } }
+{ "imports": { "three": "./vendor/three.module.min.js" } }
 </script>
 </head>
 <body>
-<div id="game"></div>
-<div id="hudTop">
-  <div class="panel"><div id="money">$0</div><div id="stars">☆☆☆☆☆</div></div>
-  <div class="panel" id="clockBox"><div id="clock">18:20</div><div id="day">DAY 1</div></div>
-</div>
-<div id="objective"></div>
-<div id="message"></div>
-<div id="minimapBox">
-  <canvas id="minimap" width="168" height="168"></canvas>
-  <div id="healthWrap"><div id="healthFill"></div></div>
-</div>
-<div id="speed"></div>
-<div id="crosshair"></div>
-<div id="damage"></div>
+<div id="app"></div>
 
-<div class="overlay" id="title" style="display:flex">
-  <h1>NEON <span>BAY</span></h1>
-  <p>An original open-world crime game. Explore the neon coast on foot and by car,
-  steal what you need, outrun the Bay PD, and run Mara's jobs to buy your way up.</p>
-  <button class="btn" id="startBtn">START NEW GAME</button>
-  <button class="btn ghost" id="continueBtn" style="display:none">CONTINUE</button>
-  <div class="controls">
-    <b>WASD</b> move / drive &nbsp;·&nbsp; <b>Mouse drag</b> look &nbsp;·&nbsp; <b>E</b> enter / exit car<br>
-    <b>Space</b> brake &nbsp;·&nbsp; <b>F</b> punch &nbsp;·&nbsp; <b>Click</b> shoot (with pistol)<br>
-    <b>M</b> jobs &nbsp;·&nbsp; <b>P</b> pause &nbsp;·&nbsp; progress saves automatically
+<div id="hud">
+  <div id="topbar">
+    <div id="money-box" class="chip">$0<small>NEON BAY</small></div>
+    <div id="stars" class="chip"></div>
+    <div id="clock-box" class="chip">15:30<small>DAY 1 &middot; SUNNY</small></div>
+  </div>
+  <div id="objective" class="chip"></div>
+  <div id="minimap-wrap" class="chip"><canvas id="minimap" width="180" height="180"></canvas><div class="label">NEON BAY</div></div>
+  <div id="health-wrap" class="chip"><div class="label">HEALTH</div><div id="health-bar"><div id="health-fill"></div></div></div>
+  <div id="speed-box" class="chip">0<small>KM/H</small></div>
+  <div id="crosshair"></div>
+  <div id="toasts"></div>
+  <div id="banner"></div>
+  <div id="hint" class="chip">WASD move &middot; SHIFT sprint &middot; E steal / exit car &middot; F punch &middot; CLICK shoot &middot; R reload &middot; M mute</div>
+</div>
+
+<div id="start-screen" class="overlay">
+  <div class="panel">
+    <h1>NEON BAY</h1>
+    <h2>AN ORIGINAL OPEN-WORLD CRIME GAME</h2>
+    <p>A sun-soaked coastal city, yours to take. Steal cars, outrun the police, run jobs for the fixer Mara, and climb from a nobody with $200 to a Neon Bay legend.</p>
+    <div class="controls">
+      <b>W A S D</b> — move &nbsp; <b>SHIFT</b> — sprint<br>
+      <b>MOUSE DRAG</b> — look around &nbsp; <b>WHEEL</b> — zoom<br>
+      <b>E</b> — steal / exit car &nbsp; <b>F</b> — punch<br>
+      <b>CLICK</b> — shoot (once you find a pistol) &nbsp; <b>R</b> — reload
+    </div>
+    <br>
+    <button id="start-btn" class="big-btn">START</button>
+    <button id="continue-btn" class="big-btn ghost" style="display:none">CONTINUE</button>
+    <p style="font-size:12px;color:#9aa0bd">Progress saves to this browser. No account, no network, no downloads.</p>
   </div>
 </div>
 
-<div class="overlay" id="pause">
-  <h1>PAUSED</h1>
-  <p>Take a breath. The Bay waits.</p>
-  <button class="btn" id="resumeBtn">RESUME</button>
-  <button class="btn ghost" id="quitBtn">SAVE &amp; QUIT TO TITLE</button>
+<div id="end-screen" class="overlay hidden">
+  <div class="panel">
+    <h1 id="end-title">BUSTED</h1>
+    <p id="end-text">The Neon Bay police took $200 in bail.</p>
+    <button id="respawn-btn" class="big-btn">BACK ON THE STREETS</button>
+  </div>
 </div>
-
-<div class="overlay" id="busted">
-  <h1 id="bustedTitle">BUSTED</h1>
-  <p id="bustedText"></p>
-</div>
-
-<div class="panel" id="missionList"></div>
 
 <script type="module" src="./src/main.js"></script>
 </body>

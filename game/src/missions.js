@@ -1,134 +1,193 @@
-// createMissions runs Mara's job chain: five missions with briefings, targets,
-// rewards and progression. Money and missions done are the progression.
+// Neon Bay — missions.js: the five-job story chain from the fixer Mara.
+// One clear job: give the player a reason to cross the city, and pay them for it.
 import * as THREE from 'three';
+import { LANDMARKS } from './city.js';
 
-const MISSIONS = [
+const JOBS = [
   {
-    id: 'first-wheels',
-    title: 'First Wheels',
-    briefing: 'Mara: New in the Bay? Steal a car, any car, and bring it to the Docks. The crew is watching.',
-    reward: 200,
+    name: 'First Errand',
+    brief: 'Pick up my package at the docks. No questions, no shortcuts.',
+    target: () => LANDMARKS.docks,
+    reward: 300,
   },
   {
-    id: 'bay-runner',
-    title: 'Bay Runner',
-    briefing: 'Mara: Package run. Get to the Bay Bar on the beach. No questions, no stops.',
-    reward: 350,
+    name: 'Getaway Driver',
+    brief: 'Steal any car and bring it to my hideout, north-east corner. Fast.',
+    target: () => LANDMARKS.hideout,
+    reward: 600,
+    needsCar: true,
   },
   {
-    id: 'lose-the-heat',
-    title: 'Lose the Heat',
-    briefing: 'Mara: The PD is on you. Get two stars, then vanish. Lay low until the heat dies.',
-    reward: 500,
+    name: 'Collector',
+    brief: 'Pick up the cash at the shop, then drop it with my contact in the park.',
+    target: () => LANDMARKS.shop,
+    reward: 800,
+    stages: 2,
   },
   {
-    id: 'crew-pickup',
-    title: 'Crew Pickup',
-    briefing: 'Mara: Pick up Rook at the north plaza and Juno at the east flats, then bring them to the Hideout.',
-    reward: 750,
+    name: 'Heat',
+    brief: 'Make some noise. Get to three stars, then lose the heat and walk away clean.',
+    target: () => LANDMARKS.plaza,
+    reward: 1000,
+    stages: 2,
   },
   {
-    id: 'neon-heist',
-    title: 'Neon Heist',
-    briefing: 'Mara: The big one. Hit the Bay Bank, grab the cash, and lose the cops across the north bridge.',
-    reward: 1500,
+    name: 'The Spire Job',
+    brief: 'The bank at the Spire plaza. Three guards. Take the cash, then lose them at the island.',
+    target: () => LANDMARKS.bank,
+    reward: 2500,
+    stages: 3,
   },
 ];
 
-const TARGETS = {
-  docks: new THREE.Vector3(230, 0, -40),
-  beachBar: new THREE.Vector3(0, 0, 212),
-  rook: new THREE.Vector3(0, 0, -140),
-  juno: new THREE.Vector3(120, 0, 120),
-  hideout: new THREE.Vector3(-160, 0, 160),
-  bank: new THREE.Vector3(40, 0, -40),
-  bridge: new THREE.Vector3(0, 0, -212),
-};
+/** Builds the gold beacon that marks the current objective in the world. */
+function buildBeacon(scene) {
+  const group = new THREE.Group();
+  group.name = 'mission-beacon';
+  const beamMat = new THREE.MeshBasicMaterial({ color: 0xffd23f, transparent: true, opacity: 0.38, side: THREE.DoubleSide, depthWrite: false });
+  const beam = new THREE.Mesh(new THREE.CylinderGeometry(2.2, 2.2, 60, 16, 1, true), beamMat);
+  beam.position.y = 30;
+  group.add(beam);
+  const ringMat = new THREE.MeshBasicMaterial({ color: 0xffd23f, transparent: true, opacity: 0.85, side: THREE.DoubleSide });
+  const ring = new THREE.Mesh(new THREE.RingGeometry(2.4, 3.4, 32), ringMat);
+  ring.rotation.x = -Math.PI / 2;
+  ring.position.y = 0.25;
+  group.add(ring);
+  scene.add(group);
+  return { group, ring, beamMat, ringMat };
+}
 
-export function createMissions() {
+/** Runs the job chain, the beacon and Mara's messages. */
+export function createMissions(scene, G) {
+  const beacon = buildBeacon(scene);
   let index = 0;
   let stage = 0;
-  let done = 0;
-  let active = true;
+  let done = false;
+  let objective = 'Meet Mara. Your first job is waiting.';
+  let target = null;
 
-  function current() {
-    return active ? MISSIONS[index] : null;
-  }
-
-  function targetFor() {
-    const m = current();
-    if (!m) return null;
-    switch (m.id) {
-      case 'first-wheels': return TARGETS.docks;
-      case 'bay-runner': return TARGETS.beachBar;
-      case 'lose-the-heat': return null;
-      case 'crew-pickup':
-        return stage === 0 ? TARGETS.rook : stage === 1 ? TARGETS.juno : TARGETS.hideout;
-      case 'neon-heist': return stage === 0 ? TARGETS.bank : TARGETS.bridge;
-      default: return null;
+  function setTarget(v) {
+    target = v;
+    if (v) {
+      beacon.group.position.set(v.x, 0, v.z);
+      beacon.group.visible = true;
+    } else {
+      beacon.group.visible = false;
     }
   }
 
-  function near(pos, target, r) {
-    return target && Math.hypot(pos.x - target.x, pos.z - target.z) < r;
+  function startJob(i) {
+    const job = JOBS[i];
+    stage = 0;
+    setTarget(job.target());
+    objective = `Job ${i + 1}/5 — ${job.name}: ${job.brief}`;
+    G.hud.toast(`<span class="mara">MARA:</span> ${job.brief} <b>$${job.reward}</b> when it is done.`);
+    if (G.audio) G.audio.jingle();
+  }
+
+  function completeJob() {
+    const job = JOBS[index];
+    G.money += job.reward;
+    G.hud.banner(`${job.name} DONE`, `+$${job.reward} — Mara is pleased.`);
+    if (G.audio) G.audio.jingle();
+    if (G.save) G.save.save();
+    index += 1;
+    if (index >= JOBS.length) {
+      done = true;
+      setTarget(null);
+      objective = 'Neon Bay Legend — all five jobs done. The city is yours. Free roam.';
+      G.hud.toast('<span class="mara">MARA:</span> Five for five. You run this city now, legend.');
+      return;
+    }
+    startJob(index);
+  }
+
+  function playerPos() {
+    return G.player.inCar && G.drivenCar ? G.drivenCar.pos : G.player.pos;
   }
 
   return {
     get index() { return index; },
     get done() { return done; },
-    get active() { return active; },
-    get all() { return MISSIONS; },
-    setIndex(i, d) { index = i; done = d; stage = 0; active = index < MISSIONS.length; },
-    current,
-    targetFor,
-    startBriefing() {
-      const m = current();
-      return m ? m.briefing : 'All jobs done. The Bay is yours, kid.';
+    get target() { return target; },
+    get objective() { return objective; },
+    beacon,
+    /** Restores the chain from a save (job index only). */
+    restore(jobIndex) {
+      index = Math.min(jobIndex, JOBS.length - 1);
+      if (index >= JOBS.length) { done = true; setTarget(null); return; }
+      startJob(index);
     },
-    // returns an event object when something happens, else null
-    update(G) {
-      const m = current();
-      if (!m) return null;
-      const pos = G.playerPos;
-      if (m.id === 'first-wheels') {
-        if (G.inCar && near(pos, TARGETS.docks, 14)) {
-          return this.complete(G);
+    start() { startJob(0); },
+    update(dt) {
+      // Pulse the beacon ring so it reads from across the city.
+      const pulse = 1 + Math.sin(performance.now() * 0.005) * 0.18;
+      beacon.ring.scale.set(pulse, pulse, 1);
+      beacon.beamMat.opacity = 0.32 + Math.sin(performance.now() * 0.003) * 0.1;
+      if (done || !target) return;
+      const job = JOBS[index];
+      const p = playerPos();
+      const dist = Math.hypot(p.x - target.x, p.z - target.z);
+
+      if (index === 3) {
+        // Heat: stage 0 is reaching three stars, stage 1 is losing them.
+        if (stage === 0) {
+          objective = `Job 4/5 — Heat: reach ★★★ (steal a car, punch, shoot), then lose the heat.`;
+          setTarget(null);
+          if (G.police.stars >= 3) {
+            stage = 1;
+            G.hud.toast('<span class="mara">MARA:</span> Three stars. Now disappear. Lay low until the heat dies.');
+          }
+        } else if (G.police.stars === 0) {
+          completeJob();
         }
-      } else if (m.id === 'bay-runner') {
-        if (near(pos, TARGETS.beachBar, 12)) return this.complete(G);
-      } else if (m.id === 'lose-the-heat') {
-        if (stage === 0 && G.wanted >= 2) {
-          stage = 1;
-          return { type: 'stage', text: 'Heat is on. Now vanish: stay out of sight until the stars fade.' };
-        }
-        if (stage === 1 && G.wanted === 0) return this.complete(G);
-      } else if (m.id === 'crew-pickup') {
-        if (stage === 0 && near(pos, TARGETS.rook, 10)) {
-          stage = 1;
-          return { type: 'stage', text: 'Rook is in. Now get Juno at the east flats.' };
-        }
-        if (stage === 1 && near(pos, TARGETS.juno, 10)) {
-          stage = 2;
-          return { type: 'stage', text: 'Juno is in. Bring the crew to the Hideout.' };
-        }
-        if (stage === 2 && near(pos, TARGETS.hideout, 12)) return this.complete(G);
-      } else if (m.id === 'neon-heist') {
-        if (stage === 0 && near(pos, TARGETS.bank, 10)) {
-          stage = 1;
-          return { type: 'stage', text: 'Cash grabbed! The alarm is up: lose the cops across the north bridge.', grab: true };
-        }
-        if (stage === 1 && near(pos, TARGETS.bridge, 12) && G.wanted === 0) return this.complete(G);
+        return;
       }
-      return null;
-    },
-    complete(G) {
-      const m = current();
-      G.money += m.reward;
-      done += 1;
-      index += 1;
-      stage = 0;
-      active = index < MISSIONS.length;
-      return { type: 'complete', text: 'Job done: ' + m.title + ' — +' + m.reward + '$', reward: m.reward };
+
+      if (index === 4) {
+        // The Spire Job: reach the bank, beat the guards, grab the cash, reach the island.
+        if (stage === 0 && dist < 9) {
+          stage = 1;
+          G.combat.spawnGuards();
+          G.hud.toast('<span class="mara">MARA:</span> Three guards. Deal with them, then grab the cash.');
+          objective = 'Job 5/5 — The Spire Job: take down the three bank guards.';
+        } else if (stage === 1) {
+          if (G.combat.guardsAlive() === 0) {
+            stage = 2;
+            setTarget(LANDMARKS.bank);
+            objective = 'Job 5/5 — The Spire Job: grab the cash at the bank door.';
+          }
+        } else if (stage === 2 && dist < 6) {
+          stage = 3;
+          G.police.addWanted(2, G.time);
+          setTarget(LANDMARKS.island);
+          G.hud.toast('<span class="mara">MARA:</span> Cash grabbed. Four stars. Lose them at the island.');
+          objective = 'Job 5/5 — The Spire Job: escape to the island and lose the heat.';
+        } else if (stage === 3 && dist < 12) {
+          completeJob();
+        }
+        return;
+      }
+
+      if (job.stages === 2 && index === 2) {
+        // Collector: shop first, then the park.
+        if (stage === 0 && dist < 6) {
+          stage = 1;
+          setTarget(LANDMARKS.park);
+          objective = 'Job 3/5 — Collector: cash in hand. Drop it with my contact in the park.';
+          G.hud.toast('<span class="mara">MARA:</span> Got it. Now the park, north-west. My contact is waiting.');
+        } else if (stage === 1 && dist < 6) {
+          completeJob();
+        }
+        return;
+      }
+
+      const need = job.needsCar ? 10 : 6;
+      if (job.needsCar && !G.player.inCar) {
+        objective = `Job ${index + 1}/5 — ${job.name}: steal a car first (walk up and press E), then drive to the gold beacon.`;
+        return;
+      }
+      if (dist < need) completeJob();
     },
   };
 }
