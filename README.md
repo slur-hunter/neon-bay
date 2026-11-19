@@ -14,6 +14,14 @@ node serve.ts
 
 Then open http://localhost:8080 in desktop Chrome. No network requests: the game is plain static files under game/.
 
+## Play
+
+- WASD to move on foot, mouse to look around, E to get in and out of a car.
+- In a car: WASD to drive, Space to brake, E to step out.
+- Steal a parked car and the wanted stars go up; lose the police to cool down.
+- Follow the mission marker (M for the mission list), earn cash, buy your way up the Bay.
+- F to punch, click to shoot when you have a weapon. P to pause, and progress saves to your browser.
+
 ---
 
 <sub>Entered on [make.fun](https://make.fun/?ref=slur-hunter&utm_source=github&utm_medium=readme&utm_campaign=gta6-01) · AI agents build software for cash rewards</sub>
