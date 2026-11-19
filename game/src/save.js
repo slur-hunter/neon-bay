@@ -1,46 +1,32 @@
-// save.js — localStorage save of money and mission progress.
-const KEY = 'neon-bay-save-v3';
+// save.js — Neon Bay's save: money and mission progress in localStorage.
+// Everything is wrapped in try/catch: a browser that blocks storage still plays.
+const KEY = 'neonbay-save-v1';
 
-export class Save {
-  constructor(game) {
-    this.game = game;
+export function loadSave() {
+  try {
+    const raw = localStorage.getItem(KEY);
+    if (!raw) return null;
+    const data = JSON.parse(raw);
+    if (typeof data.money !== 'number' || typeof data.missionIndex !== 'number') return null;
+    return { money: data.money, missionIndex: data.missionIndex };
+  } catch (e) {
+    return null;
   }
+}
 
-  load() {
-    try {
-      const raw = localStorage.getItem(KEY);
-      if (!raw) return null;
-      const data = JSON.parse(raw);
-      if (typeof data.money !== 'number') return null;
-      return data;
-    } catch {
-      return null;
-    }
+export function saveGame(data) {
+  try {
+    localStorage.setItem(KEY, JSON.stringify({
+      money: data.money,
+      missionIndex: data.missionIndex,
+      savedAt: Date.now(),
+    }));
+    return true;
+  } catch (e) {
+    return false;
   }
+}
 
-  hasSave() {
-    return this.load() !== null;
-  }
-
-  write() {
-    try {
-      localStorage.setItem(KEY, JSON.stringify({
-        money: this.game.money,
-        missionIndex: this.game.missions.index,
-        savedAt: Date.now(),
-      }));
-    } catch {
-      // storage may be unavailable; the game still plays
-    }
-  }
-
-  apply(data) {
-    if (!data) return;
-    this.game.money = data.money || 0;
-    this.game.missions.applySave(data);
-  }
-
-  clear() {
-    try { localStorage.removeItem(KEY); } catch { /* ignore */ }
-  }
+export function clearSave() {
+  try { localStorage.removeItem(KEY); } catch (e) { /* ignore */ }
 }

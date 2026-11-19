@@ -1,169 +1,142 @@
-// hud.js — the DOM HUD (money, health, wanted stars, objective, prompts) and the
-// Canvas 2D minimap (roads, player, cars, police, pedestrians, mission marker).
-import { BLOCK_LINES, HALF, ROAD_LINES } from './city.js';
+// hud.js — the HUD: wanted stars, health, money, mission text, speed, and a
+// Canvas 2D minimap (player, cars, police, mission marker), plus the overlays.
+import { CITY } from './city.js';
 
-export class Hud {
-  constructor(game) {
-    this.game = game;
-    this.el = {
-      hud: document.getElementById('hud'),
-      money: document.getElementById('money'),
-      healthfill: document.getElementById('healthfill'),
-      stars: document.getElementById('stars'),
-      objective: document.getElementById('objective'),
-      objdist: document.getElementById('objdist'),
-      speed: document.getElementById('speed'),
-      speedunit: document.getElementById('speedunit'),
-      prompt: document.getElementById('prompt'),
-      toast: document.getElementById('toast'),
-      banner: document.getElementById('banner'),
-      minimap: document.getElementById('minimap'),
-      vignette: document.getElementById('vignette'),
-      fpsnote: document.getElementById('fpsnote'),
-    };
-    this.mapCtx = this.el.minimap.getContext('2d');
-    this.toastTimer = 0;
-    this.bannerTimer = 0;
+export function createHud() {
+  const starsEl = document.getElementById('stars');
+  const healthEl = document.getElementById('healthbar');
+  const moneyEl = document.getElementById('money');
+  const missionEl = document.getElementById('mission');
+  const speedEl = document.getElementById('speed');
+  const bannerEl = document.getElementById('banner');
+  const compassArrowEl = document.getElementById('compassArrow');
+  const compassDistEl = document.getElementById('compassDist');
+  const minimap = document.getElementById('minimap');
+  const mm = minimap.getContext('2d');
+  const startEl = document.getElementById('start');
+  const pauseEl = document.getElementById('pause');
+  const gameoverEl = document.getElementById('gameover');
+  const loadingEl = document.getElementById('loading');
+
+  let bannerTimer = null;
+
+  function setStars(n) {
+    let html = '';
+    for (let i = 0; i < 4; i++) html += i < n ? '★' : '<span class="off">★</span>';
+    starsEl.innerHTML = html;
   }
 
-  show() { this.el.hud.classList.remove('hidden'); }
-  hide() { this.el.hud.classList.add('hidden'); }
-
-  showToast(text) {
-    this.el.toast.textContent = text;
-    this.el.toast.classList.remove('hidden');
-    this.toastTimer = 4;
+  function setHealth(h) {
+    const pct = Math.max(0, Math.min(100, h));
+    healthEl.style.width = pct + '%';
+    healthEl.style.background = pct > 50
+      ? 'linear-gradient(90deg,#37d67a,#9be15d)'
+      : pct > 25 ? 'linear-gradient(90deg,#f2c200,#ff9c1a)' : 'linear-gradient(90deg,#e23c2e,#ff7a5c)';
   }
 
-  showBanner(big, sub) {
-    this.el.banner.querySelector('.big').textContent = big;
-    this.el.banner.querySelector('.sub').textContent = sub;
-    this.el.banner.classList.remove('hidden');
-    this.bannerTimer = 4;
+  function setMoney(m) { moneyEl.textContent = '$' + m.toLocaleString('en-US'); }
+  function setSpeed(mph) { speedEl.innerHTML = Math.round(mph) + ' <small>mph</small>'; }
+  function setMission(html) { missionEl.innerHTML = html; }
+
+  function message(title, sub, ms) {
+    bannerEl.innerHTML = title + (sub ? '<small>' + sub + '</small>' : '');
+    bannerEl.style.display = 'block';
+    if (bannerTimer) clearTimeout(bannerTimer);
+    bannerTimer = setTimeout(() => { bannerEl.style.display = 'none'; }, ms || 2600);
   }
 
-  update(dt) {
-    const game = this.game;
-    // In a staged screenshot the toast and banner must stay up for the shot.
-    const staged = game.shots && game.shots.mode !== 0;
-    if (!staged) {
-      this.toastTimer -= dt;
-      this.bannerTimer -= dt;
+  function hideBanner() { bannerEl.style.display = 'none'; }
+
+  // Compass: an arrow that points toward the mission marker relative to the
+  // camera, with the distance in metres. Hidden once the debt is paid.
+  function setCompass(angleRad, distM) {
+    if (angleRad === null) {
+      compassArrowEl.style.display = 'none';
+      compassDistEl.textContent = '';
+      return;
     }
-    if (this.toastTimer <= 0) this.el.toast.classList.add('hidden');
-    if (this.bannerTimer <= 0) this.el.banner.classList.add('hidden');
-    this.el.money.textContent = '$' + game.money.toLocaleString('en-US');
-    this.el.healthfill.style.width = Math.max(0, game.health) + '%';
-    const stars = '★'.repeat(game.wanted) + '☆'.repeat(4 - game.wanted);
-    this.el.stars.textContent = stars;
-    this.el.objective.textContent = game.missions.objectiveText();
-    const target = game.missions.targetPos();
-    if (target) {
-      const d = Math.hypot(game.player.pos.x - target.x, game.player.pos.z - target.z);
-      this.el.objdist.textContent = 'Objective ' + Math.round(d) + ' m away · Debt left $' + Math.max(0, 1500 - game.money);
-    } else {
-      this.el.objdist.textContent = 'Debt left $' + Math.max(0, 1500 - game.money);
-    }
-    const speed = game.player.inCar && game.player.car ? Math.abs(game.player.car.speed) * 2.2 : 0;
-    this.el.speed.textContent = String(Math.round(speed));
-    this.el.speedunit.textContent = game.player.inCar ? 'mph' : 'on foot';
-    // interaction prompt
-    if (game.state === 'playing' && !game.player.inCar) {
-      const car = game.vehicles.nearestCar(game.player.pos, 5, true);
-      if (car) {
-        this.el.prompt.innerHTML = 'Press <b>E</b> to steal the car';
-        this.el.prompt.classList.remove('hidden');
-      } else {
-        this.el.prompt.classList.add('hidden');
-      }
-    } else if (game.state === 'playing' && game.player.inCar) {
-      this.el.prompt.innerHTML = 'Press <b>E</b> to get out';
-      this.el.prompt.classList.remove('hidden');
-    } else {
-      this.el.prompt.classList.add('hidden');
-    }
-    // red flash while being rammed
-    const hurt = game.time - game.combat.lastHurtAt < 0.4;
-    this.el.vignette.style.boxShadow = hurt
-      ? 'inset 0 0 120px rgba(255, 30, 60, 0.55)'
-      : 'inset 0 0 120px rgba(255, 30, 60, 0.0)';
-    this.drawMinimap();
+    compassArrowEl.style.display = 'inline-block';
+    compassArrowEl.style.transform = 'rotate(' + angleRad + 'rad)';
+    compassDistEl.textContent = Math.round(distM) + 'm';
   }
 
-  drawMinimap() {
-    const ctx = this.mapCtx;
+  // Minimap: roads, blocks, player arrow, cars, police, mission marker.
+  function drawMinimap(state) {
     const S = 180;
-    const scale = S / (HALF * 2 + 40);
-    const toMap = (x, z) => [S / 2 + x * scale, S / 2 + z * scale];
-    ctx.clearRect(0, 0, S, S);
-    ctx.fillStyle = '#141a26';
-    ctx.fillRect(0, 0, S, S);
-    // blocks
-    ctx.fillStyle = '#3a4152';
-    for (const bx of BLOCK_LINES) {
-      for (const bz of BLOCK_LINES) {
-        const [mx, my] = toMap(bx - 20, bz - 20);
-        ctx.fillRect(mx, my, 40 * scale, 40 * scale);
+    const half = CITY.half;
+    const toMap = (x, z) => [((x + half) / (half * 2)) * S, ((z + half) / (half * 2)) * S];
+    mm.clearRect(0, 0, S, S);
+    mm.fillStyle = '#0d1a2e';
+    mm.fillRect(0, 0, S, S);
+    // Roads.
+    mm.fillStyle = '#3a3f46';
+    for (const s of CITY.streetCenters) {
+      const [px] = toMap(s, 0);
+      const [, pz] = toMap(0, s);
+      mm.fillRect(px - 4, 0, 8, S);
+      mm.fillRect(0, pz - 4, S, 8);
+    }
+    // Blocks.
+    mm.fillStyle = '#5a5148';
+    for (const bx of CITY.blockCenters) {
+      for (const bz of CITY.blockCenters) {
+        const [x, y] = toMap(bx - CITY.block / 2, bz - CITY.block / 2);
+        const w = (CITY.block / (half * 2)) * S;
+        mm.fillRect(x, y, w, w);
       }
     }
-    // roads
-    ctx.strokeStyle = '#5a6274';
-    ctx.lineWidth = 12 * scale;
-    for (const c of ROAD_LINES) {
-      const [x1, y1] = toMap(-HALF, c);
-      const [x2, y2] = toMap(HALF, c);
-      ctx.beginPath(); ctx.moveTo(x1, y1); ctx.lineTo(x2, y2); ctx.stroke();
-      const [x3, y3] = toMap(c, -HALF);
-      const [x4, y4] = toMap(c, HALF);
-      ctx.beginPath(); ctx.moveTo(x3, y3); ctx.lineTo(x4, y4); ctx.stroke();
+    // Mission marker.
+    if (state.mission && !state.missionDone) {
+      const [x, y] = toMap(state.mission.x, state.mission.z);
+      mm.fillStyle = '#ffd23f';
+      mm.beginPath();
+      mm.arc(x, y, 6, 0, Math.PI * 2);
+      mm.fill();
+      mm.strokeStyle = '#fff';
+      mm.lineWidth = 2;
+      mm.stroke();
     }
-    // bay
-    ctx.fillStyle = '#2a7fa8';
-    const [bx0, by0] = toMap(-HALF, -HALF - 34);
-    ctx.fillRect(bx0, by0, (HALF * 2) * scale, 34 * scale);
-    const game = this.game;
-    // mission marker
-    const target = game.missions.targetPos();
-    if (target) {
-      const [mx, my] = toMap(target.x, target.z);
-      ctx.fillStyle = '#ffd23e';
-      ctx.beginPath();
-      ctx.moveTo(mx, my - 7); ctx.lineTo(mx + 6, my); ctx.lineTo(mx, my + 7); ctx.lineTo(mx - 6, my);
-      ctx.closePath(); ctx.fill();
+    // Traffic and parked cars.
+    mm.fillStyle = '#9fd8ff';
+    for (const c of state.cars || []) {
+      const [x, y] = toMap(c.pos.x, c.pos.z);
+      mm.fillRect(x - 2, y - 2, 4, 4);
     }
-    // pedestrians
-    ctx.fillStyle = '#9aa5b5';
-    for (const w of game.pedestrians.walkers) {
-      const [mx, my] = toMap(w.mesh.position.x, w.mesh.position.z);
-      ctx.fillRect(mx - 1, my - 1, 2, 2);
+    // Police.
+    mm.fillStyle = '#ff4d4d';
+    for (const c of state.police || []) {
+      const [x, y] = toMap(c.pos.x, c.pos.z);
+      mm.beginPath();
+      mm.arc(x, y, 3.5, 0, Math.PI * 2);
+      mm.fill();
     }
-    // traffic
-    ctx.fillStyle = '#e8e8e8';
-    for (const c of game.vehicles.traffic) {
-      const [mx, my] = toMap(c.mesh.position.x, c.mesh.position.z);
-      ctx.beginPath(); ctx.arc(mx, my, 2.5, 0, Math.PI * 2); ctx.fill();
-    }
-    // police
-    ctx.fillStyle = '#ff4040';
-    for (const cop of game.police.cops) {
-      const [mx, my] = toMap(cop.mesh.position.x, cop.mesh.position.z);
-      ctx.beginPath(); ctx.arc(mx, my, 3.5, 0, Math.PI * 2); ctx.fill();
-    }
-    // player arrow
-    const p = game.player.pos;
-    const [px, py] = toMap(p.x, p.z);
-    const heading = game.player.inCar && game.player.car ? game.player.car.heading : game.player.heading;
-    ctx.save();
-    ctx.translate(px, py);
-    ctx.rotate(Math.atan2(Math.sin(heading), -Math.cos(heading)) + Math.PI);
-    ctx.fillStyle = '#00e5ff';
-    ctx.beginPath();
-    ctx.moveTo(0, -7); ctx.lineTo(5, 5); ctx.lineTo(-5, 5);
-    ctx.closePath(); ctx.fill();
-    ctx.restore();
-    // north tick
-    ctx.fillStyle = '#9fb4c8';
-    ctx.font = 'bold 11px sans-serif';
-    ctx.fillText('N', S / 2 - 3, 12);
+    // Player arrow.
+    const [px, py] = toMap(state.player.x, state.player.z);
+    mm.save();
+    mm.translate(px, py);
+    mm.rotate(Math.atan2(Math.sin(state.player.yaw), Math.cos(state.player.yaw)) * -1 + Math.PI);
+    mm.fillStyle = '#7dff9b';
+    mm.beginPath();
+    mm.moveTo(0, -7); mm.lineTo(5, 6); mm.lineTo(-5, 6); mm.closePath();
+    mm.fill();
+    mm.restore();
   }
+
+  return {
+    setStars, setHealth, setMoney, setSpeed, setMission, message, hideBanner, drawMinimap, setCompass,
+    showStart() { startEl.style.display = 'flex'; pauseEl.style.display = 'none'; gameoverEl.style.display = 'none'; },
+    hideStart() { startEl.style.display = 'none'; },
+    showPause() { pauseEl.style.display = 'flex'; },
+    hidePause() { pauseEl.style.display = 'none'; },
+    showGameOver(text) {
+      document.getElementById('gameoverText').textContent = text;
+      gameoverEl.style.display = 'flex';
+    },
+    hideGameOver() { gameoverEl.style.display = 'none'; },
+    hideLoading() { loadingEl.style.display = 'none'; },
+    setContinue(money) {
+      document.getElementById('continueRow').style.display = money > 0 ? 'block' : 'none';
+      document.getElementById('continueMoney').textContent = money;
+    },
+  };
 }

@@ -1,165 +1,132 @@
-// player.js — the on-foot character, third-person camera, and getting in/out of cars.
+// player.js — Rico on foot: WASD movement relative to the camera, so forward
+// always walks away from the camera in the direction faced (never inverted).
 import * as THREE from 'three';
+import { collideBuildings, clampToCity } from './city.js';
 
-function makePersonMesh() {
-  const g = new THREE.Group();
-  g.name = 'player';
-  const jacket = new THREE.MeshLambertMaterial({ color: 0x0e7a6e });
-  const jeans = new THREE.MeshLambertMaterial({ color: 0x2c3e55 });
-  const skin = new THREE.MeshLambertMaterial({ color: 0xd9a077 });
-  const torso = new THREE.Mesh(new THREE.BoxGeometry(0.85, 1.0, 0.45), jacket);
-  torso.position.y = 1.15;
+const SKIN = [0xf2c89b, 0xc98d5f, 0x8a5a3b];
+const SHIRT = [0xff5a3c, 0x2f7de1, 0x37c978, 0xf2c200, 0x8b5cf6];
+
+export function createPlayer(scene, city) {
+  const group = new THREE.Group();
+  group.name = 'player';
+
+  const skin = SKIN[Math.floor(Math.random() * SKIN.length)];
+  const shirt = SHIRT[Math.floor(Math.random() * SHIRT.length)];
+
+  const legs = new THREE.Mesh(
+    new THREE.BoxGeometry(0.55, 0.85, 0.35),
+    new THREE.MeshStandardMaterial({ color: 0x2b3a55, roughness: 0.9 }),
+  );
+  legs.position.y = 0.425;
+  legs.castShadow = true;
+  group.add(legs);
+
+  const torso = new THREE.Mesh(
+    new THREE.BoxGeometry(0.75, 0.8, 0.42),
+    new THREE.MeshStandardMaterial({ color: shirt, roughness: 0.85 }),
+  );
+  torso.position.y = 1.25;
   torso.castShadow = true;
-  g.add(torso);
-  const head = new THREE.Mesh(new THREE.SphereGeometry(0.32, 12, 10), skin);
+  group.add(torso);
+
+  const head = new THREE.Mesh(
+    new THREE.SphereGeometry(0.3, 14, 12),
+    new THREE.MeshStandardMaterial({ color: skin, roughness: 0.7 }),
+  );
   head.position.y = 1.95;
   head.castShadow = true;
-  g.add(head);
-  const cap = new THREE.Mesh(new THREE.CylinderGeometry(0.34, 0.34, 0.12, 12),
-    new THREE.MeshLambertMaterial({ color: 0xff2e88 }));
-  cap.position.y = 2.18;
-  g.add(cap);
-  for (const sx of [-0.22, 0.22]) {
-    const leg = new THREE.Mesh(new THREE.BoxGeometry(0.32, 0.8, 0.36), jeans);
-    leg.position.set(sx, 0.4, 0);
-    leg.castShadow = true;
-    leg.name = sx < 0 ? 'legL' : 'legR';
-    g.add(leg);
-    const arm = new THREE.Mesh(new THREE.BoxGeometry(0.24, 0.85, 0.28), jacket);
-    arm.position.set(sx * 1.45, 1.15, 0);
-    arm.name = sx < 0 ? 'armL' : 'armR';
-    g.add(arm);
-  }
-  return g;
-}
+  group.add(head);
 
-export class Player {
-  constructor(scene, city, vehicles) {
-    this.scene = scene;
-    this.city = city;
-    this.vehicles = vehicles;
-    this.mesh = makePersonMesh();
-    scene.add(this.mesh);
-    const spawn = city.spawnPos;
-    this.mesh.position.set(spawn.x, 0, spawn.z);
-    this.heading = Math.PI; // facing north, down the street
-    this.camYaw = Math.PI;
-    this.camPitch = 0.32;
-    this.inCar = false;
-    this.car = null;
-    this.walkPhase = 0;
-    this.moving = false;
-  }
+  // A cap, so the player reads at a glance in screenshots.
+  const cap = new THREE.Mesh(
+    new THREE.SphereGeometry(0.32, 14, 8, 0, Math.PI * 2, 0, Math.PI * 0.45),
+    new THREE.MeshStandardMaterial({ color: 0xffd23f, roughness: 0.7 }),
+  );
+  cap.position.y = 2.02;
+  group.add(cap);
 
-  get pos() { return this.mesh.position; }
+  // Arms, used for the punch swing.
+  const armMat = new THREE.MeshStandardMaterial({ color: shirt, roughness: 0.85 });
+  const armL = new THREE.Mesh(new THREE.BoxGeometry(0.2, 0.7, 0.2), armMat);
+  armL.position.set(-0.48, 1.3, 0);
+  armL.castShadow = true;
+  group.add(armL);
+  const armR = armL.clone();
+  armR.position.x = 0.48;
+  group.add(armR);
 
-  // Camera-relative movement: forward is always away from the camera.
-  update(dt, input, camera) {
-    if (this.inCar) {
-      this.vehicles.drive(this.car, input, dt);
-      this.mesh.position.copy(this.car.mesh.position);
-      this.mesh.visible = false;
-      this.updateCarCamera(dt, camera);
-      return;
+  scene.add(group);
+
+  const player = {
+    group,
+    pos: new THREE.Vector3(0, 0, 20),
+    yaw: Math.PI,
+    speed: 0,
+    walkSpeed: 6,
+    runSpeed: 9.5,
+    radius: 0.6,
+    moving: false,
+    punchTimer: 0,
+    armR,
+    armL,
+  };
+
+  player.reset = function (x, z, yaw) {
+    player.pos.set(x, 0, z);
+    player.yaw = yaw;
+    player.speed = 0;
+    player.group.position.copy(player.pos);
+    player.group.rotation.y = yaw;
+  };
+
+  // input: {f,b,l,r,run} in camera space; camYaw is the camera's yaw.
+  player.update = function (dt, input, camYaw) {
+    let mx = 0; let mz = 0;
+    if (input.f) mz += 1;
+    if (input.b) mz -= 1;
+    if (input.l) mx -= 1;
+    if (input.r) mx += 1;
+    player.moving = (mx !== 0 || mz !== 0);
+    if (!player.moving) { player.speed = 0; return; }
+
+    // Camera-relative: forward is where the camera looks on the ground plane.
+    const sin = Math.sin(camYaw); const cos = Math.cos(camYaw);
+    const fx = -sin; const fz = -cos;
+    const rx = -cos; const rz = sin;
+    let dx = fx * mz + rx * mx;
+    let dz = fz * mz + rz * mx;
+    const len = Math.hypot(dx, dz);
+    dx /= len; dz /= len;
+
+    const targetYaw = Math.atan2(dx, dz);
+    let dy = targetYaw - player.yaw;
+    while (dy > Math.PI) dy -= Math.PI * 2;
+    while (dy < -Math.PI) dy += Math.PI * 2;
+    player.yaw += dy * Math.min(1, dt * 12);
+
+    const speed = input.run ? player.runSpeed : player.walkSpeed;
+    player.speed = speed;
+    player.pos.x += dx * speed * dt;
+    player.pos.z += dz * speed * dt;
+    collideBuildings(player.pos, player.radius, city.buildings);
+    clampToCity(player.pos, city.bounds - 2);
+
+    // Walk bob.
+    const t = performance.now() / 1000;
+    player.group.position.set(player.pos.x, Math.abs(Math.sin(t * 10)) * 0.06, player.pos.z);
+    player.group.rotation.y = player.yaw;
+    player.armL.rotation.x = Math.sin(t * 10) * 0.5;
+    player.armR.rotation.x = -Math.sin(t * 10) * 0.5;
+
+    if (player.punchTimer > 0) {
+      player.punchTimer -= dt;
+      player.armR.rotation.x = -1.6 * Math.max(0, player.punchTimer / 0.25);
     }
-    this.mesh.visible = true;
-    // forward = away from camera, right = 90 degrees clockwise from forward
-    const fx = -Math.sin(this.camYaw), fz = -Math.cos(this.camYaw);
-    const rx = -fz, rz = fx;
-    let mx = 0, mz = 0;
-    if (input.forward) { mx += fx; mz += fz; }
-    if (input.back) { mx -= fx; mz -= fz; }
-    if (input.right) { mx += rx; mz += rz; }
-    if (input.left) { mx -= rx; mz -= rz; }
-    const len = Math.hypot(mx, mz);
-    this.moving = len > 0.01;
-    if (this.moving) {
-      mx /= len; mz /= len;
-      const speed = input.sprint ? 10 : 6;
-      this.mesh.position.x += mx * speed * dt;
-      this.mesh.position.z += mz * speed * dt;
-      // face the direction of travel (never camera-inverted)
-      this.heading = Math.atan2(mx, mz);
-      this.mesh.rotation.y = this.heading;
-      this.walkPhase += dt * speed * 1.6;
-      const swing = Math.sin(this.walkPhase) * 0.45;
-      const legL = this.mesh.getObjectByName('legL');
-      const legR = this.mesh.getObjectByName('legR');
-      if (legL) legL.rotation.x = swing;
-      if (legR) legR.rotation.x = -swing;
-    } else {
-      const legL = this.mesh.getObjectByName('legL');
-      const legR = this.mesh.getObjectByName('legR');
-      if (legL) legL.rotation.x *= 0.8;
-      if (legR) legR.rotation.x *= 0.8;
-    }
-    this.city.collideCircle(this.mesh.position, 0.7);
-    this.city.clampToCity(this.mesh.position, -1);
-    this.updateFootCamera(dt, camera);
-  }
+  };
 
-  updateFootCamera(dt, camera) {
-    const dist = 7.5;
-    const target = new THREE.Vector3(
-      this.mesh.position.x + Math.sin(this.camYaw) * dist,
-      3.2 + this.camPitch * 4,
-      this.mesh.position.z + Math.cos(this.camYaw) * dist,
-    );
-    camera.position.lerp(target, Math.min(1, dt * 10));
-    camera.lookAt(this.mesh.position.x, 1.6, this.mesh.position.z);
-  }
+  player.punch = function () {
+    player.punchTimer = 0.25;
+  };
 
-  updateCarCamera(dt, camera) {
-    const car = this.car;
-    const f = { x: Math.sin(car.heading), z: Math.cos(car.heading) };
-    const dist = 11;
-    const target = new THREE.Vector3(
-      car.mesh.position.x - f.x * dist,
-      4.6,
-      car.mesh.position.z - f.z * dist,
-    );
-    camera.position.lerp(target, Math.min(1, dt * 6));
-    camera.lookAt(
-      car.mesh.position.x + f.x * 7,
-      1.4,
-      car.mesh.position.z + f.z * 7,
-    );
-  }
-
-  // Steal / enter the nearest car. Returns the car or null.
-  tryEnterCar() {
-    if (this.inCar) return null;
-    const car = this.vehicles.nearestCar(this.mesh.position, 5, true);
-    if (!car) return null;
-    this.inCar = true;
-    this.car = car;
-    car.taken = true;
-    car.speed = 0;
-    if (car.isTraffic) {
-      // a traffic car stops when its driver is pulled out
-      car.isTraffic = false;
-    }
-    this.mesh.visible = false;
-    return car;
-  }
-
-  exitCar() {
-    if (!this.inCar) return;
-    const car = this.car;
-    const f = { x: Math.sin(car.heading), z: Math.cos(car.heading) };
-    this.mesh.position.set(
-      car.mesh.position.x - f.z * 2.5,
-      0,
-      car.mesh.position.z + f.x * 2.5,
-    );
-    this.inCar = false;
-    this.car = null;
-    this.mesh.visible = true;
-    this.camYaw = car.heading + Math.PI;
-  }
-
-  look(dx, dy) {
-    this.camYaw -= dx * 0.004;
-    this.camPitch = Math.max(-0.1, Math.min(1.1, this.camPitch + dy * 0.002));
-  }
+  return player;
 }

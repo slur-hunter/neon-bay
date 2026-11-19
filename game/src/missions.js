@@ -1,159 +1,103 @@
-// missions.js — the story: four jobs to pay off a $1,500 debt to loan shark Sal Vane.
-// A beacon marks the target in the world, on the minimap, and in the HUD.
+// missions.js — Rico's debt: four jobs for Vinnie "The Ledger" Marlow. Markers
+// sit on sidewalk corners just outside their buildings, so a car or a walker can
+// actually reach them.
 import * as THREE from 'three';
 
 const MISSION_DEFS = [
   {
-    title: 'Job 1 — Dock Pickup',
-    text: 'Sal Vane left a package on the north pier. Go get it. The docks are marked in gold.',
-    target: 'pier',
-    reward: 200,
+    id: 1, title: 'Job 1 — The Pickup', pay: 200,
+    text: 'Pick up the package at the corner of 2nd & Palm. $200.',
+    story: 'Rico grabs the package. One down — the Ledger is watching.',
+    pos: [38, -22],
   },
   {
-    title: 'Job 2 — Bank Drop',
-    text: 'Take the package to the bank tower downtown. No detours, no cops.',
-    target: 'bank',
-    reward: 350,
+    id: 2, title: 'Job 2 — The Drop', pay: 300,
+    text: 'Deliver the package to the docks on the south-west corner. $300.',
+    story: 'Drop made. Vinnie counts the bills and nods. Two to go.',
+    pos: [-98, 98],
   },
   {
-    title: 'Job 3 — Shake the Heat',
-    text: 'Sal’s boys tipped off the cops. Lose the heat, then reach the hideout in the south-west.',
-    target: 'hideout',
-    reward: 500,
-    forceWanted: 2,
+    id: 3, title: 'Job 3 — The Getaway', pay: 300,
+    text: 'The heat is on. Reach the safehouse on the north-east corner. $300.',
+    story: 'Rico slips into the safehouse. The sirens fade. One last job.',
+    pos: [-38, 82],
   },
   {
-    title: 'Job 4 — The Last Run',
-    text: 'One last case to the Sunset Marina warehouse. Finish this and the debt is paid.',
-    target: 'marina',
-    reward: 800,
+    id: 4, title: 'Job 4 — The Payoff', pay: 400,
+    text: 'Drive to Vinnie\u2019s office on the east side and settle the debt. $400.',
+    story: 'Debt paid. Neon Bay is Rico\u2019s again — free roam, no more jobs.',
+    pos: [98, -38],
   },
 ];
 
-export class Missions {
-  constructor(scene, city, game) {
-    this.scene = scene;
-    this.city = city;
-    this.game = game;
-    this.index = 0;
-    this.done = false;
-    this.beacon = this.buildBeacon();
-    this.scene.add(this.beacon);
-    this.markerLight = new THREE.PointLight(0xffd23e, 60, 40);
-    this.scene.add(this.markerLight);
-    this.placeBeacon();
+export function createMissions(scene) {
+  const markers = [];
+  const markerMat = new THREE.MeshStandardMaterial({
+    color: 0xffd23f, emissive: 0xffb300, emissiveIntensity: 1.6, transparent: true, opacity: 0.85,
+  });
+  const ringMat = new THREE.MeshStandardMaterial({
+    color: 0xffe45e, emissive: 0xffc400, emissiveIntensity: 1.2, transparent: true, opacity: 0.9,
+  });
+
+  for (const def of MISSION_DEFS) {
+    const group = new THREE.Group();
+    const beam = new THREE.Mesh(new THREE.CylinderGeometry(1.6, 1.6, 7, 16, 1, true), markerMat);
+    beam.position.y = 3.5;
+    group.add(beam);
+    const ring = new THREE.Mesh(new THREE.TorusGeometry(1.9, 0.16, 8, 28), ringMat);
+    ring.rotation.x = Math.PI / 2;
+    ring.position.y = 0.25;
+    group.add(ring);
+    group.position.set(def.pos[0], 0, def.pos[1]);
+    group.visible = false;
+    scene.add(group);
+    markers.push({ def, group, ring });
   }
 
-  buildBeacon() {
-    const g = new THREE.Group();
-    g.name = 'missionBeacon';
-    const beam = new THREE.Mesh(
-      new THREE.CylinderGeometry(1.2, 1.2, 40, 12, 1, true),
-      new THREE.MeshBasicMaterial({ color: 0xffd23e, transparent: true, opacity: 0.35, side: THREE.DoubleSide, depthWrite: false }),
-    );
-    beam.position.y = 20;
-    g.add(beam);
-    const ring = new THREE.Mesh(
-      new THREE.RingGeometry(2.2, 3.2, 32),
-      new THREE.MeshBasicMaterial({ color: 0xffd23e, transparent: true, opacity: 0.9, side: THREE.DoubleSide }),
-    );
-    ring.rotation.x = -Math.PI / 2;
-    ring.position.y = 0.1;
-    ring.name = 'ring';
-    g.add(ring);
-    const diamond = new THREE.Mesh(
-      new THREE.OctahedronGeometry(1.1),
-      new THREE.MeshBasicMaterial({ color: 0xffd23e }),
-    );
-    diamond.position.y = 6;
-    diamond.name = 'diamond';
-    g.add(diamond);
-    return g;
-  }
+  const missions = {
+    defs: MISSION_DEFS,
+    index: 0,
+    done: false,
+    markers,
+  };
 
-  current() {
-    return MISSION_DEFS[this.index] || null;
-  }
+  missions.current = function () {
+    return MISSION_DEFS[Math.min(missions.index, MISSION_DEFS.length - 1)];
+  };
 
-  targetPos() {
-    const def = this.current();
-    if (!def) return null;
-    const city = this.city;
-    if (def.target === 'pier') return city.pierPos;
-    if (def.target === 'bank') return city.bankPos;
-    if (def.target === 'hideout') return city.hideoutPos;
-    return city.marinaPos;
-  }
+  missions.markerPos = function () {
+    const def = missions.current();
+    return { x: def.pos[0], z: def.pos[1] };
+  };
 
-  placeBeacon() {
-    const pos = this.targetPos();
-    if (!pos) { this.beacon.visible = false; this.markerLight.visible = false; return; }
-    this.beacon.visible = true;
-    this.markerLight.visible = true;
-    this.beacon.position.set(pos.x, 0, pos.z);
-    this.markerLight.position.set(pos.x, 6, pos.z);
-    const def = this.current();
-    if (def && def.forceWanted) this.game.setWanted(def.forceWanted);
-  }
+  missions.showCurrent = function () {
+    markers.forEach((m, i) => { m.group.visible = (i === missions.index && !missions.done); });
+  };
 
-  update(dt, playerPos, time) {
-    const diamond = this.beacon.getObjectByName('diamond');
-    if (diamond) {
-      diamond.rotation.y += dt * 1.5;
-      diamond.position.y = 6 + Math.sin(time * 2) * 0.5;
+  missions.reset = function (index) {
+    missions.index = index || 0;
+    missions.done = false;
+    missions.showCurrent();
+  };
+
+  // Returns the completed mission def when the player reaches the marker, else null.
+  missions.update = function (dt, playerPos) {
+    if (missions.done) return null;
+    const def = missions.current();
+    const d = Math.hypot(playerPos.x - def.pos[0], playerPos.z - def.pos[1]);
+    // Marker ring spins while it waits.
+    const marker = markers[missions.index];
+    if (marker) marker.ring.rotation.z += dt * 1.5;
+    if (d < 4) {
+      const done = def;
+      missions.index += 1;
+      if (missions.index >= MISSION_DEFS.length) missions.done = true;
+      missions.showCurrent();
+      return done;
     }
-    const ring = this.beacon.getObjectByName('ring');
-    if (ring) {
-      const s = 1 + Math.sin(time * 3) * 0.08;
-      ring.scale.set(s, s, 1);
-    }
-    const def = this.current();
-    if (!def || this.done) return;
-    const pos = this.targetPos();
-    const d = Math.hypot(playerPos.x - pos.x, playerPos.z - pos.z);
-    if (def.target === 'hideout' && this.game.wanted > 0) return; // lose the heat first
-    if (d < 5) this.complete(def);
-  }
+    return null;
+  };
 
-  complete(def) {
-    this.game.money += def.reward;
-    this.game.addScore(def.reward);
-    this.game.effects.burst(this.targetPos(), 0xffd23e, 40);
-    this.game.audio.chime();
-    this.game.hud.showBanner('MISSION COMPLETE', def.title + '  ·  +$' + def.reward);
-    this.game.hud.showToast('Sal Vane: “Good. ' + (this.index + 1) + ' of 4 jobs done.”');
-    this.index += 1;
-    this.game.save.write();
-    if (this.index >= MISSION_DEFS.length) {
-      this.done = true;
-      this.beacon.visible = false;
-      this.markerLight.visible = false;
-      this.game.hud.showBanner('DEBT PAID', 'Neon Bay is yours now, Rex. Free roam — enjoy the sunset.');
-      this.game.hud.showToast('All four jobs complete. The $1,500 debt is paid.');
-    } else {
-      this.placeBeacon();
-    }
-  }
-
-  objectiveText() {
-    const def = this.current();
-    if (!def) return 'Debt paid. Free roam — Neon Bay is yours.';
-    if (def.target === 'hideout' && this.game.wanted > 0) {
-      return def.title + ' — LOSE THE COPS FIRST (' + this.game.wanted + '★), then reach the hideout.';
-    }
-    return def.title + ' — ' + def.text;
-  }
-
-  // Apply a save file: skip to the mission the player had reached.
-  applySave(save) {
-    if (!save) return;
-    this.index = Math.max(0, Math.min(save.missionIndex || 0, MISSION_DEFS.length));
-    this.done = this.index >= MISSION_DEFS.length;
-    if (this.done) {
-      this.beacon.visible = false;
-      this.markerLight.visible = false;
-    } else {
-      this.placeBeacon();
-    }
-  }
+  missions.showCurrent();
+  return missions;
 }
