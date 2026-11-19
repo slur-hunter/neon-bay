@@ -1,107 +1,120 @@
-// Neon Bay — pedestrians.js: the people on the sidewalks, who walk, turn and run.
-// One clear job: make the city feel lived in, and make it react to trouble.
+// pedestrians.js — people walking the sidewalks around each block.
 import * as THREE from 'three';
-import { CITY, mulberry32 } from './city.js';
+import { BLOCK_LINES } from './city.js';
 
-const SHIRT_COLORS = [0xd83a3a, 0x3a6fd8, 0xe8c33a, 0x3ad8a0, 0xd8d8d8, 0x8a5fd8, 0xff8c42, 0x4de8ff];
+const SHIRTS = [0xd4553d, 0x3d7ad4, 0x53b06a, 0xd4a53d, 0x9a5fd4, 0xe8e8e8, 0x222226];
 
-/** Builds one simple walker: a body, a head, and two legs that swing. */
-function buildWalker(color) {
+function makeWalkerMesh(color) {
   const g = new THREE.Group();
   g.name = 'pedestrian';
-  const shirt = new THREE.MeshStandardMaterial({ color, roughness: 0.9 });
-  const skin = new THREE.MeshStandardMaterial({ color: 0xc98d5f, roughness: 0.8 });
-  const pants = new THREE.MeshStandardMaterial({ color: 0x2c2c34, roughness: 0.9 });
-  const body = new THREE.Mesh(new THREE.CylinderGeometry(0.32, 0.38, 1.0, 8), shirt);
-  body.position.y = 1.15;
-  body.castShadow = true;
-  g.add(body);
-  const head = new THREE.Mesh(new THREE.SphereGeometry(0.26, 10, 8), skin);
-  head.position.y = 1.88;
-  head.castShadow = true;
+  const shirt = new THREE.MeshLambertMaterial({ color });
+  const pants = new THREE.MeshLambertMaterial({ color: 0x2c2c34 });
+  const skin = new THREE.MeshLambertMaterial({ color: 0xc98d64 });
+  const torso = new THREE.Mesh(new THREE.BoxGeometry(0.7, 0.85, 0.38), shirt);
+  torso.position.y = 1.05;
+  torso.castShadow = true;
+  g.add(torso);
+  const head = new THREE.Mesh(new THREE.SphereGeometry(0.27, 10, 8), skin);
+  head.position.y = 1.75;
   g.add(head);
-  const legGeo = new THREE.BoxGeometry(0.2, 0.7, 0.22);
-  legGeo.translate(0, -0.35, 0);
-  const legL = new THREE.Mesh(legGeo, pants);
-  legL.position.set(-0.14, 0.7, 0);
-  g.add(legL);
-  const legR = new THREE.Mesh(legGeo, pants);
-  legR.position.set(0.14, 0.7, 0);
-  g.add(legR);
-  return { group: g, legL, legR };
+  for (const sx of [-0.18, 0.18]) {
+    const leg = new THREE.Mesh(new THREE.BoxGeometry(0.26, 0.7, 0.3), pants);
+    leg.position.set(sx, 0.35, 0);
+    leg.name = sx < 0 ? 'legL' : 'legR';
+    g.add(leg);
+  }
+  return g;
 }
 
-/** Spawns fourteen walkers on the sidewalks. */
-export function createPedestrians(scene, city) {
-  void city;
-  const rng = mulberry32(4242);
-  const peds = [];
-  for (let i = 0; i < 14; i += 1) {
-    const color = SHIRT_COLORS[Math.floor(rng() * SHIRT_COLORS.length)];
-    const { group, legL, legR } = buildWalker(color);
-    const axis = rng() > 0.5 ? 'x' : 'z';
-    const street = CITY.streets[Math.floor(rng() * CITY.streets.length)];
-    const along = -150 + rng() * 300;
-    const side = rng() > 0.5 ? 6.5 : -6.5;
-    group.position.set(axis === 'x' ? along : street + side, 0, axis === 'x' ? street + side : along);
-    scene.add(group);
-    peds.push({
-      group, legL, legR,
-      axis, street, along,
-      side,
-      dir: rng() > 0.5 ? 1 : -1,
-      speed: 1.4 + rng() * 1.1,
-      phase: rng() * Math.PI * 2,
-      flee: 0,
-      pos: group.position,
-    });
+export class Pedestrians {
+  constructor(scene, city, rng) {
+    this.scene = scene;
+    this.city = city;
+    this.rng = rng;
+    this.walkers = [];
+    for (let i = 0; i < 14; i++) this.spawnWalker();
   }
 
-  return {
-    peds,
-    /** Scares every walker near a point: they run away for a few seconds. */
-    frighten(x, z, radius) {
-      for (const p of peds) {
-        const d = Math.hypot(p.pos.x - x, p.pos.z - z);
-        if (d < radius) {
-          p.flee = 3;
-          // Run away along the current axis.
-          const away = p.axis === 'x' ? (p.pos.x - x) : (p.pos.z - z);
-          p.dir = away >= 0 ? 1 : -1;
-        }
+  spawnWalker() {
+    const bx = BLOCK_LINES[Math.floor(this.rng() * BLOCK_LINES.length)];
+    const bz = BLOCK_LINES[Math.floor(this.rng() * BLOCK_LINES.length)];
+    const color = SHIRTS[Math.floor(this.rng() * SHIRTS.length)];
+    const mesh = makeWalkerMesh(color);
+    this.scene.add(mesh);
+    const walker = {
+      mesh,
+      blockX: bx, blockZ: bz,
+      leg: Math.floor(this.rng() * 4),
+      speed: 1.2 + this.rng() * 1.1,
+      heading: 0,
+      stumble: 0,
+      phase: this.rng() * 6,
+    };
+    const wp = this.perimeterPoint(walker, 0);
+    mesh.position.set(wp.x, 0, wp.z);
+    this.walkers.push(walker);
+    return walker;
+  }
+
+  // Corners of the sidewalk ring around a block (2 units outside the block edge).
+  perimeterCorners(bx, bz) {
+    const half = 22;
+    return [
+      { x: bx - half, z: bz - half },
+      { x: bx + half, z: bz - half },
+      { x: bx + half, z: bz + half },
+      { x: bx - half, z: bz + half },
+    ];
+  }
+
+  perimeterPoint(walker, ahead) {
+    const corners = this.perimeterCorners(walker.blockX, walker.blockZ);
+    const from = corners[walker.leg % 4];
+    const to = corners[(walker.leg + 1) % 4];
+    return ahead ? to : from;
+  }
+
+  nearest(pos, maxDist) {
+    let best = null, bestD = maxDist;
+    for (const w of this.walkers) {
+      const d = Math.hypot(w.mesh.position.x - pos.x, w.mesh.position.z - pos.z);
+      if (d < bestD) { bestD = d; best = w; }
+    }
+    return best;
+  }
+
+  // A punch sends a walker stumbling backwards.
+  knockback(walker, dirX, dirZ) {
+    walker.stumble = 0.7;
+    walker.stumbleDir = { x: dirX, z: dirZ };
+    walker.mesh.rotation.x = -0.5;
+  }
+
+  update(dt) {
+    for (const w of this.walkers) {
+      if (w.stumble > 0) {
+        w.stumble -= dt;
+        const s = w.stumbleDir || { x: 0, z: 1 };
+        w.mesh.position.x += s.x * 5 * dt;
+        w.mesh.position.z += s.z * 5 * dt;
+        if (w.stumble <= 0) w.mesh.rotation.x = 0;
+        continue;
       }
-    },
-    update(dt) {
-      for (const p of peds) {
-        if (p.flee > 0) p.flee -= dt;
-        const speed = p.flee > 0 ? 4.6 : p.speed;
-        p.along += p.dir * speed * dt;
-        if (p.along > 155) { p.along = 155; p.dir = -1; }
-        if (p.along < -155) { p.along = -155; p.dir = 1; }
-        // At an intersection, sometimes turn onto the cross street.
-        if (p.flee <= 0) {
-          for (const s of CITY.streets) {
-            if (Math.abs(p.along - s) < 2 && rng() < dt * 0.12) {
-              const newStreet = s;
-              const newAlong = p.axis === 'x' ? p.pos.z - p.side : p.pos.x - p.side;
-              p.axis = p.axis === 'x' ? 'z' : 'x';
-              p.street = newStreet;
-              p.along = newAlong;
-              p.dir = rng() > 0.5 ? 1 : -1;
-              break;
-            }
-          }
-        }
-        if (p.axis === 'x') p.group.position.set(p.along, 0, p.street + p.side);
-        else p.group.position.set(p.street + p.side, 0, p.along);
-        // Face the direction of travel and swing the legs.
-        const targetYaw = p.axis === 'x' ? (p.dir > 0 ? Math.PI / 2 : -Math.PI / 2) : (p.dir > 0 ? 0 : Math.PI);
-        p.group.rotation.y = targetYaw;
-        p.phase += dt * speed * 3.2;
-        const swing = Math.sin(p.phase) * 0.5;
-        p.legL.rotation.x = swing;
-        p.legR.rotation.x = -swing;
-      }
-    },
-  };
+      const target = this.perimeterPoint(w, 1);
+      const p = w.mesh.position;
+      const dx = target.x - p.x, dz = target.z - p.z;
+      const dist = Math.hypot(dx, dz);
+      w.heading = Math.atan2(dx, dz);
+      w.mesh.rotation.y = w.heading;
+      p.x += (dx / (dist || 1)) * w.speed * dt;
+      p.z += (dz / (dist || 1)) * w.speed * dt;
+      w.phase += dt * w.speed * 2.4;
+      const swing = Math.sin(w.phase) * 0.4;
+      const legL = w.mesh.getObjectByName('legL');
+      const legR = w.mesh.getObjectByName('legR');
+      if (legL) legL.rotation.x = swing;
+      if (legR) legR.rotation.x = -swing;
+      if (dist < 1.2) w.leg = (w.leg + 1) % 4;
+    }
+  }
 }

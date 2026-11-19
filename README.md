@@ -4,70 +4,73 @@
 [![rank](https://make.fun/badge/gta6-01/slur-hunter/neon-bay/rank.svg)](https://make.fun/bounty/gta6-01/leaderboard?utm_source=github&utm_medium=readme&utm_campaign=gta6-01)
 [![reward](https://make.fun/badge/gta6-01/slur-hunter/neon-bay/reward.svg)](https://make.fun/bounty/gta6-01?utm_source=github&utm_medium=readme&utm_campaign=gta6-01)
 
-An original open-world crime game that runs in a desktop browser from its own
-static files — no network, no account, no downloads. A sun-soaked coastal city
-is yours to take: walk its streets, steal cars, outrun the police, run five
-jobs for the fixer Mara, and climb from a nobody with $200 to a Neon Bay legend.
+**Neon Bay** is an original open-world crime game that runs in a desktop browser from
+its own static files — no build step, no network request. You are Rex, a courier in the
+sun-soaked city of Neon Bay, and you owe $1,500 to Sal Vane, the loan shark who owns the
+docks. Take his four jobs, pay the debt, and take the city back.
 
-Everything in it is original: the city, the characters, the vehicles, the
-names, the story, the art and the sounds. Nothing from any commercial game.
+## What it does
 
-## How to play
+- A drivable city on foot and by car: a 5×5 block street grid with traffic looping around
+  the blocks, pedestrians on the sidewalks, parked cars, a bay and a wooden pier.
+- Steal any car (E) and drive it — traffic stops, police notice, and the wanted level rises.
+- Wanted level 0–4 stars: police cars spawn, chase you with flashing light bars, and ram
+  you. Lose them and the heat cools off.
+- Four story missions with a gold beacon, minimap marker, and payout: dock pickup, bank
+  drop, losing the heat, and the last run to the marina. Completing all four pays the debt.
+- Combat on foot (click to punch), health, game over and retry.
+- HUD with money, health bar, wanted stars, mission objective and distance, speed, and a
+  live Canvas 2D minimap (player, traffic, police, pedestrians, mission marker).
+- Start screen with the story and controls, pause screen, and a localStorage save of your
+  money and job progress.
+- Bright late-afternoon sun, long shadows, and synthesized WebAudio sound (engine, sirens,
+  pickup chime) with M to mute.
 
-Open `game/index.html` in desktop Chrome, or run `node serve.ts` and open
-http://localhost:8080.
+## How to run it
 
-- **W A S D** — move (on foot or driving)
-- **SHIFT** — sprint on foot
-- **MOUSE DRAG** — look around, **WHEEL** — zoom the camera
-- **E** — steal a car / step out of one
-- **F** — punch
-- **CLICK** — shoot, once you find the pistol at the docks
-- **R** — reload, **M** — mute
+```sh
+node serve.ts
+```
 
-## What is in the game
+Then open http://localhost:8080 in desktop Chrome. Click **START THE JOB** and play.
 
-- A procedural neon coastal city: 9x9 blocks, docks, a beach, a bridge to an
-  island with a lighthouse, and the Spire tower at its heart.
-- Traffic (10 cars) and pedestrians (14 walkers) living on the streets.
-- Car theft, a wanted level of 1–5 stars, and police cars that chase, ram and
-  bust you. Heat cools when you lay low.
-- A five-job story chain from the fixer Mara, with a gold beacon marking each
-  objective, cash rewards, and a bank robbery to finish.
-- Combat: fists, a pistol pickup at the docks, and three armed bank guards.
-- A HUD with money, wanted stars, health, speed, the clock, the objective and
-  a live minimap. Progress saves to the browser.
-- Synthesized sound (engine, sirens, gunshots, jingles) and pooled particle
-  effects. No audio files.
+## Controls
+
+| Key | Action |
+| --- | --- |
+| W A S D | Walk / drive (Shift to sprint on foot) |
+| Mouse drag | Look around (click the scene to lock the mouse) |
+| E | Steal / enter a car, get out of a car |
+| Click | Punch (on foot) |
+| Space | Handbrake while driving |
+| P / Esc | Pause and save |
+| M | Mute sound |
 
 ## Files
 
-- `game/index.html` — the page, HUD and start screen
-- `game/src/main.js` — boot, game loop, input, game state
-- `game/src/city.js` — the procedural city, sky, sun, water, landmarks
-- `game/src/player.js` — on-foot movement and the orbit camera
-- `game/src/vehicles.js` — cars, traffic AI, parked cars, driving physics
+- `game/index.html` — the page: canvas, HUD, start/pause/game-over screens
+- `game/src/main.js` — boot, lights, input, game loop, wanted decay
+- `game/src/city.js` — street grid, blocks, buildings, bay, pier, collision
+- `game/src/vehicles.js` — car meshes, traffic loops, parked cars, driving
+- `game/src/player.js` — on-foot movement, third-person camera, entering cars
+- `game/src/police.js` — police spawning, chase AI, ramming, siren light bars
 - `game/src/pedestrians.js` — sidewalk walkers
-- `game/src/police.js` — wanted level, pursuit, busted
-- `game/src/missions.js` — Mara's five-job chain and the gold beacon
-- `game/src/combat.js` — punch, pistol, bank guards, health
-- `game/src/hud.js` — HUD and live minimap
-- `game/src/save.js` — localStorage saves
-- `game/src/effects.js` — pooled particles
-- `game/src/audio.js` — synthesized WebAudio sounds
-- `game/src/shots.js` — the four staged screenshot scenes
+- `game/src/missions.js` — the four jobs, beacon, payouts
+- `game/src/combat.js` — punching, ram damage, health, game over
+- `game/src/hud.js` — DOM HUD and the minimap
+- `game/src/save.js` — localStorage save and load
+- `game/src/audio.js` — WebAudio synth effects
+- `game/src/effects.js` — particle bursts and screen shake
+- `game/src/shots.js` — the four `?shot=` staged scenes for screenshots
 - `game/vendor/three.module.min.js` — three.js r160, vendored
-- `main.ts` — builds `dossier.json` from `game/` and `screenshots/`
-- `serve.ts` — serves `game/` on http://localhost:8080
-- `screenshots/` — four real renders of the game
+- `main.ts` — the entry program: copies `game/` and `screenshots/` to `/output` and
+  writes `dossier.json`
+- `serve.ts` — the local static server for testing
+- `screenshots/` — four real renders of the game (1280×800 JPEG)
 
-## Verify it
-
-```sh
-node serve.ts            # play at http://localhost:8080
-mkdir -p out && MAKEFUN_OUTPUT_DIR=out node main.ts   # build the dossier
-```
+Everything in the city, the characters, the vehicles, the names and the story is original.
+Nothing is taken from any commercial game.
 
 ## License
 
-MIT. See `LICENSE`.
+MIT — see `LICENSE`.

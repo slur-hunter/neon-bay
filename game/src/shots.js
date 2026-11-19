@@ -1,73 +1,136 @@
-// Neon Bay — shots.js: the four fixed scenes for the screenshots.
-// One clear job: put the game in a photogenic state for each ?shot= mode.
-// The judge sees the screenshots first, so every shot is staged in bright
-// late-afternoon sun with several systems visible at once.
-import { LANDMARKS } from './city.js';
-import { repaint } from './vehicles.js';
-
-/** Stages one of the four screenshot scenes. Returns the camera mode to use. */
-export function setupShot(G, name) {
-  G.dayTime = 15.5; // bright late-afternoon sun, never dusk
-  if (name === 'start') {
-    // Title screen over the bright city: the Spire, the streets, the bay.
-    G.state = 'title';
-    return 'cinematic';
+// shots.js — stages the four ?shot= scenes for the screenshots and tells the page
+// when a shot is ready. Readiness uses REAL time (performance.now), never game time,
+// and waits at least 4 seconds after the scene loads.
+export class Shots {
+  constructor(game) {
+    this.game = game;
+    this.mode = 0;
+    this.bootTime = performance.now();
+    this.frames = 0;
+    this.staged = false;
   }
 
-  // The other three shots play the game: hide the start screen and go.
-  document.getElementById('start-screen').classList.add('hidden');
-  G.hud.show();
-  G.state = 'playing';
-  G.audio.unlock();
-
-  if (name === 'drive') {
-    // Driving down a street with one star and a police car trailing.
-    const car = G.vehicles.parked[0];
-    car.kind = 'player';
-    car.pos.set(24, 0, -16);
-    car.heading = Math.PI / 2;
-    car.speed = 22;
-    repaint(car, 0xf5c542); // bright yellow so the hero car pops on the dark road
-    G.drivenCar = car;
-    G.player.setInCar(true);
-    G.player.pos.copy(car.pos);
-    G.missions.restore(1); // Getaway Driver: the beacon marks the hideout
-    G.police.addWanted(1, G.time);
-    // One police car on the same street, trailing behind, so the chase reads.
-    G.police.spawnAt(-2, -16, 18);
-    G.cam.yaw = 0;
-    return 'chase';
+  parse() {
+    const params = new URLSearchParams(window.location.search);
+    const shot = parseInt(params.get('shot') || '0', 10);
+    this.mode = Number.isFinite(shot) ? shot : 0;
+    const seed = parseInt(params.get('seed') || '7', 10);
+    return { shot: this.mode, seed: Number.isFinite(seed) ? seed : 7 };
   }
 
-  if (name === 'chase') {
-    // A four-star chase: three police cars closing in on the player's car.
-    const car = G.vehicles.parked[1];
-    car.kind = 'player';
-    car.pos.set(-40, 0, 16);
-    car.heading = Math.PI / 2;
-    car.speed = 30;
-    G.drivenCar = car;
-    G.player.setInCar(true);
-    G.player.pos.copy(car.pos);
-    G.missions.restore(3); // Heat: already at three stars, losing the heat
-    G.police.addWanted(4, G.time);
-    // Two police cars close behind, one ahead as a roadblock, so the chase
-    // reads in the forward-facing chase camera (pursuers behind it are unseen).
-    G.police.spawnAt(-54, 16, 26);
-    G.police.spawnAt(-62, 16, 26);
-    G.police.spawnAt(-10, 16, 24, -Math.PI / 2);
-    G.fx.dust(car.pos.x, 0.5, car.pos.z, 12);
-    G.cam.yaw = Math.PI / 2;
-    return 'chase';
+  // Put the world into the staged state for the requested shot.
+  stage() {
+    if (this.staged || this.mode === 0) return;
+    this.staged = true;
+    const game = this.game;
+    if (this.mode === 1) {
+      // Start screen over a wide city view. The menu overlay stays up.
+      game.setCinematicCamera();
+      return;
+    }
+    game.startGame();
+    if (this.mode === 2) {
+      // Driving down a street with traffic around.
+      const car = game.debug.enterSpawnCar();
+      if (car) {
+        car.speed = 14;
+        car.heading = Math.PI / 2; // east along the z=26 road
+        car.mesh.rotation.y = car.heading;
+        car.mesh.position.set(0, 0, 26);
+        game.player.camYaw = car.heading + Math.PI;
+      }
+      game.hud.showToast('Neon Bay — drive anywhere. Steal any car. Watch the stars.');
+      this.snapChaseCamera();
+    } else if (this.mode === 3) {
+      // Police chase: 4 stars, cop cars ahead and behind the player, light bars on.
+      // The two ahead face the player so their light bars show in the chase camera.
+      const car = game.debug.enterSpawnCar();
+      if (car) {
+        car.speed = 20;
+        car.heading = Math.PI / 2;
+        car.mesh.rotation.y = car.heading;
+        car.mesh.position.set(-30, 0, 26);
+        game.player.camYaw = car.heading + Math.PI;
+      }
+      game.setWanted(4);
+      game.police.update(0.5, game.player.pos, 0, 0, 4);
+      const p = game.player.pos;
+      const f = { x: Math.sin(game.player.car.heading), z: Math.cos(game.player.car.heading) };
+      const spots = [
+        { ahead: 16, side: 5, face: Math.PI },
+        { ahead: 22, side: -4, face: Math.PI },
+        { ahead: -12, side: 0, face: 0 },
+      ];
+      game.police.cops.forEach((cop, i) => {
+        const s = spots[i % spots.length];
+        cop.mesh.position.set(
+          p.x + f.x * s.ahead - f.z * s.side,
+          0,
+          p.z + f.z * s.ahead + f.x * s.side,
+        );
+        cop.heading = game.player.car.heading + s.face;
+        cop.mesh.rotation.y = cop.heading;
+        cop.speed = 22;
+      });
+      game.hud.showToast('4 stars — the whole Neon Bay force is on you. Lose them!');
+      this.snapChaseCamera();
+    } else if (this.mode === 4) {
+      // Mission complete: Rex on foot at the pier, the payout banner up.
+      game.money = 200;
+      game.missions.index = 1;
+      game.missions.placeBeacon();
+      game.player.mesh.position.set(0, 0, -128);
+      game.player.heading = Math.PI;
+      game.player.mesh.rotation.y = Math.PI;
+      game.player.camYaw = 0;
+      game.effects.burst(game.player.pos, 0xffd23e, 40);
+      game.hud.showBanner('MISSION COMPLETE', 'Job 1 — Dock Pickup  ·  +$200');
+      game.hud.showToast('Sal Vane: “Good. 1 of 4 jobs done.”');
+      this.snapFootCamera();
+    }
   }
 
-  // mission: on foot at the docks, the gold beacon over Mara's package.
-  // The player stands at the pier's shore end so the pier, the beacon and
-  // the water all read; a higher, further camera keeps the figure visible.
-  G.missions.restore(0); // First Errand: the beacon marks the docks
-  G.player.placeAt(0, 172, 0);
-  G.cam.dist = 18;
-  G.cam.pitch = 0.5;
-  G.cam.yaw = 0;
-  return 'follow';
+  // The headless renderer runs at a few frames a second, so a lerped camera never
+  // reaches its place before the shot is taken. Snap it to the staged position now.
+  snapChaseCamera() {
+    const game = this.game;
+    const car = game.player.car;
+    if (!car) return;
+    const f = { x: Math.sin(car.heading), z: Math.cos(car.heading) };
+    const cam = game.camera;
+    cam.position.set(
+      car.mesh.position.x - f.x * 11, 4.6,
+      car.mesh.position.z - f.z * 11,
+    );
+    cam.lookAt(
+      car.mesh.position.x + f.x * 7, 1.4,
+      car.mesh.position.z + f.z * 7,
+    );
+  }
+
+  snapFootCamera() {
+    const game = this.game;
+    const p = game.player;
+    const cam = game.camera;
+    cam.position.set(
+      p.pos.x + Math.sin(p.camYaw) * 7.5,
+      3.2 + p.camPitch * 4,
+      p.pos.z + Math.cos(p.camYaw) * 7.5,
+    );
+    cam.lookAt(p.pos.x, 1.6, p.pos.z);
+  }
+
+  // Called every frame; flips window.__shotReady once the scene is staged,
+  // rendered a few times, and 4 real seconds have passed since load.
+  tick() {
+    this.frames += 1;
+    if (this.mode === 0) {
+      window.__shotReady = true;
+      return;
+    }
+    const elapsed = performance.now() - this.bootTime;
+    if (this.staged && this.frames >= 3 && elapsed >= 4000) {
+      window.__shotReady = true;
+    }
+  }
 }
