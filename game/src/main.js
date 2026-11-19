@@ -74,11 +74,17 @@ let orbitT = 0;
 
 // mission beacon: a tall gold column over the current target
 const beacon = new THREE.Mesh(
-  new THREE.CylinderGeometry(2.2, 2.2, 70, 12, 1, true),
-  new THREE.MeshBasicMaterial({ color: 0xffd23e, transparent: true, opacity: 0.28, side: THREE.DoubleSide })
+  new THREE.CylinderGeometry(0.8, 0.8, 70, 12, 1, true),
+  new THREE.MeshBasicMaterial({ color: 0xffd23e, transparent: true, opacity: 0.12, side: THREE.DoubleSide })
 );
 beacon.visible = false;
 scene.add(beacon);
+const beaconGem = new THREE.Mesh(
+  new THREE.OctahedronGeometry(2.2),
+  new THREE.MeshBasicMaterial({ color: 0xffd23e })
+);
+beaconGem.visible = false;
+scene.add(beaconGem);
 
 function refreshObjective() {
   const m = missions.current();
@@ -93,8 +99,11 @@ function refreshObjective() {
   if (G.marker) {
     beacon.visible = true;
     beacon.position.set(G.marker.x, 35, G.marker.z);
+    beaconGem.visible = true;
+    beaconGem.position.set(G.marker.x, 12, G.marker.z);
   } else {
     beacon.visible = false;
+    beaconGem.visible = false;
   }
 }
 
@@ -363,8 +372,10 @@ function frame() {
   if (!G.frozen && G.mode === 'playing') step(dt);
   else if (!G.frozen && G.mode === 'title') city.update(dt, G.minutes);
   if (beacon.visible) {
-    beacon.material.opacity = 0.2 + Math.sin(G.time * 3) * 0.08;
+    beacon.material.opacity = 0.1 + Math.sin(G.time * 3) * 0.04;
     beacon.rotation.y += dt * 0.5;
+    beaconGem.rotation.y += dt * 1.2;
+    beaconGem.position.y = 12 + Math.sin(G.time * 2) * 1.2;
   }
   updateCamera(dt);
   hud.update(dt, G);
@@ -399,9 +410,24 @@ function setupShot() {
     G.inCar.speed = 30;
     police.addWanted(3, 'shot setup');
     for (let i = 0; i < 90; i++) step(1 / 60);
+    // stage one police car ahead of the player so the chase reads in frame
+    const nearest = police.policeCars.slice().sort((a, b) =>
+      Math.hypot(a.pos.x - G.playerPos.x, a.pos.z - G.playerPos.z) -
+      Math.hypot(b.pos.x - G.playerPos.x, b.pos.z - G.playerPos.z))[0];
+    if (nearest) {
+      const fwdX = Math.sin(G.inCar.heading);
+      const fwdZ = Math.cos(G.inCar.heading);
+      nearest.pos.set(G.playerPos.x + fwdX * 24 + fwdZ * 7, 0, G.playerPos.z + fwdZ * 24 - fwdX * 7);
+      nearest.heading = G.inCar.heading;
+      nearest.speed = 30;
+      nearest.group.position.copy(nearest.pos);
+      nearest.group.rotation.y = nearest.heading;
+    }
     G.frozen = true;
   } else if (shot === 'mission') {
-    player.teleport(180, -40, Math.PI / 2);
+    // First Wheels at the docks: player on the east road facing the piers,
+    // containers, crane and water, mission beacon over the target.
+    player.teleport(170, -40, Math.PI / 2);
     G.playerPos.copy(player.pos);
     refreshObjective();
     for (let i = 0; i < 60; i++) step(1 / 60);

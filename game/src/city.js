@@ -22,7 +22,7 @@ function groundTexture(rng) {
   c.height = 1024;
   const g = c.getContext('2d');
   const px = (x) => (x + 320) * (1024 / 640);
-  g.fillStyle = '#171722';
+  g.fillStyle = '#232330';
   g.fillRect(0, 0, 1024, 1024);
   // water south and east
   g.fillStyle = '#0a2a4a';
@@ -33,11 +33,11 @@ function groundTexture(rng) {
   g.fillRect(0, px(190), px(240), px(240) - px(190));
   // roads
   for (const r of ROAD_LINES) {
-    g.fillStyle = '#23232f';
+    g.fillStyle = '#2e2e40';
     g.fillRect(px(r - 7), 0, px(r + 7) - px(r - 7), 1024);
     g.fillRect(0, px(r - 7), 1024, px(r + 7) - px(r - 7));
     // sidewalks
-    g.fillStyle = '#2e2e3e';
+    g.fillStyle = '#3a3a4e';
     g.fillRect(px(r - 11), 0, px(r - 7) - px(r - 11), 1024);
     g.fillRect(px(r + 7), 0, px(r + 11) - px(r + 7), 1024);
     g.fillRect(0, px(r - 11), 1024, px(r - 7) - px(r - 11));
@@ -135,7 +135,7 @@ export function createCity(scene, seed) {
   const sun = new THREE.DirectionalLight(0xff9a5c, 1.4);
   sun.position.set(-120, 90, 60);
   scene.add(sun);
-  const amb = new THREE.AmbientLight(0x505080, 0.65);
+  const amb = new THREE.AmbientLight(0x505080, 0.8);
   scene.add(amb);
 
   // window texture variants shared by all buildings
@@ -200,10 +200,10 @@ export function createCity(scene, seed) {
           group.add(roof);
         }
         // neon sign on the face toward the nearest road
-        if (rng() < 0.5 && signIndex < signWords.length) {
+        if (rng() < 0.7 && signIndex < signWords.length) {
           const [word, color] = signWords[signIndex++];
           const sign = new THREE.Mesh(
-            new THREE.PlaneGeometry(12, 3),
+            new THREE.PlaneGeometry(14, 3.5),
             new THREE.MeshBasicMaterial({ map: signTexture(word, color), transparent: true })
           );
           sign.position.set(x, Math.min(h - 2, 14), z + d / 2 + 0.15);
@@ -374,8 +374,8 @@ export function createCity(scene, seed) {
       const dusk = Math.max(0, 1 - Math.abs(elev) * 2.2);
       sun.position.set(Math.cos(ang) * 160, 30 + Math.max(0, elev) * 140, 80);
       sun.color.setHSL(0.07 + dusk * 0.02, 0.9, 0.55 + (1 - dusk) * 0.1);
-      sun.intensity = 0.9 + Math.max(0, elev) * 1.3 + dusk * 0.7;
-      hemi.intensity = 0.85 + Math.max(0, elev) * 0.5;
+      sun.intensity = 1.1 + Math.max(0, elev) * 1.3 + dusk * 0.7;
+      hemi.intensity = 1.0 + Math.max(0, elev) * 0.5;
       scene.background.setHSL(0.72, 0.55, 0.16 + Math.max(0, elev) * 0.12 + dusk * 0.1);
       scene.fog.color.copy(scene.background);
       beacon.material.color.setHSL((t * 0.2) % 1, 0.9, 0.6);

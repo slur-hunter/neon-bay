@@ -37,7 +37,7 @@ export function createPlayer(scene, city) {
     walkPhase: 0,
     camYaw: Math.PI,
     camPitch: 0.32,
-    camDist: 9,
+    camDist: 7.5,
     dragging: false,
   };
   group.position.copy(state.pos);
