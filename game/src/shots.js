@@ -35,7 +35,7 @@ export function createShots(game) {
       g.police.setWanted(0);
       g.missions.reset(0);
       g.money = 0;
-      g.hud.setMission('<b>Job 1 — The Pickup</b><br>Pick up the package at 2nd &amp; Palm. $200.');
+      g.updateMissionHud();
       snapCamera([30, 7, 46], [30, 1.5, 0]);
     } else if (n === 2) {
       // Driving: Rico in a stolen sedan, street ahead, speed on the HUD.
@@ -49,7 +49,7 @@ export function createShots(game) {
       g.police.setWanted(0);
       g.missions.reset(0);
       g.money = 0;
-      g.hud.setMission('<b>Job 1 — The Pickup</b><br>Pick up the package at 2nd &amp; Palm. $200.');
+      g.updateMissionHud();
       snapCamera([30, 6.5, 78], [30, 1, 30]);
     } else if (n === 3) {
       // The chase: 4 stars, three cruisers on Rico, light bars flashing.
@@ -61,13 +61,23 @@ export function createShots(game) {
       car.mesh.position.copy(car.pos);
       car.mesh.rotation.y = car.yaw;
       g.police.setWanted(4);
-      // A cruiser starts ahead of Rico, bearing down head-on, so its light bar
-      // reads in the frame; the update loop adds the rest of the pursuit.
+      // All four cruisers are staged explicitly: at headless frame rates the
+      // update loop's spawn cooldown (1.2 s of game time, dt capped at 0.05)
+      // is too slow to add them before the shot is taken. One bears down
+      // head-on so its light bar reads in the frame; the rest pursue.
       g.police.spawnAt(30, -8);
-      g.missions.reset(0);
+      g.police.spawnAt(30, -28);
+      g.police.spawnAt(30, 26);
+      g.police.spawnAt(30, 18);
+      // Job 2 is current: Job 1 paid the $200 Rico already holds, so the
+      // mission text, stage and dialogue all read as Job 2.
+      g.missions.reset(1);
       g.money = 200;
-      g.hud.setMission('<b>Job 2 — The Drop</b><br>Deliver the package to the docks. $300.');
-      snapCamera([18, 7, 34], [30, 1, -6]);
+      g.updateMissionHud();
+      // Camera pulled back and up from v4's [18,7,34]: at v4's framing only
+      // one cruiser read clearly, the rest falling at the frame's edge. The
+      // wider shot keeps two cruisers and their light bars in frame.
+      snapCamera([14, 10, 52], [30, 1, -10]);
     } else {
       // Mission complete: Job 1 paid, banner up, Rico at the next marker.
       g.exitCar(true);
@@ -75,7 +85,7 @@ export function createShots(game) {
       g.police.setWanted(0);
       g.missions.reset(1);
       g.money = 200;
-      g.hud.setMission('<b>Job 2 — The Drop</b><br>Deliver the package to the docks. $300.');
+      g.updateMissionHud();
       g.hud.message('MISSION COMPLETE', '+$200 — Job 1 done. The Ledger is pleased.', 60000);
       snapCamera([-83, 5, 72], [-98, 2, 98]);
     }

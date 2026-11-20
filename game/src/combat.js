@@ -1,5 +1,6 @@
-// combat.js — the punch: a short-range swing in front of the player. It knocks a
-// pedestrian down, and if the police see it, the heat goes up.
+// combat.js — the punch: a short-range swing in front of Rico. It knocks a
+// pedestrian down, and if the police see it, the heat goes up. Punch only:
+// there is no weapon system in this game, so the HUD shows none.
 import * as THREE from 'three';
 
 export function createCombat() {
@@ -10,7 +11,8 @@ export function createCombat() {
   function punch(origin, yaw, targets) {
     if (cooldown > 0) return [];
     cooldown = 0.45;
-    const fx = Math.sin(yaw); const fz = Math.cos(yaw);
+    const fx = Math.sin(yaw);
+    const fz = Math.cos(yaw);
     const hit = [];
     for (const t of targets) {
       const dx = t.pos.x - origin.x;

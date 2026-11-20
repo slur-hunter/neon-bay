@@ -1,5 +1,6 @@
-// hud.js — the HUD: wanted stars, health, money, mission text, speed, and a
-// Canvas 2D minimap (player, cars, police, mission marker), plus the overlays.
+// hud.js — the HUD: wanted stars, health, money, mission text with its stage
+// and next step, a police-response panel, a dialogue box, speed, and a Canvas
+// 2D minimap (player, cars, police, mission marker), plus the overlays.
 import { CITY } from './city.js';
 
 export function createHud() {
@@ -7,10 +8,16 @@ export function createHud() {
   const healthEl = document.getElementById('healthbar');
   const moneyEl = document.getElementById('money');
   const missionEl = document.getElementById('mission');
+  const stageEl = document.getElementById('stage');
   const speedEl = document.getElementById('speed');
   const bannerEl = document.getElementById('banner');
   const compassArrowEl = document.getElementById('compassArrow');
   const compassDistEl = document.getElementById('compassDist');
+  const policeEl = document.getElementById('policePanel');
+  const policeListEl = document.getElementById('policeList');
+  const dialogueEl = document.getElementById('dialogue');
+  const dialogueNameEl = document.getElementById('dialogueName');
+  const dialogueTextEl = document.getElementById('dialogueText');
   const minimap = document.getElementById('minimap');
   const mm = minimap.getContext('2d');
   const startEl = document.getElementById('start');
@@ -19,10 +26,15 @@ export function createHud() {
   const loadingEl = document.getElementById('loading');
 
   let bannerTimer = null;
+  let lastPoliceHtml = null;
+  let lastDialogueKey = null;
+  let lastStageHtml = null;
 
   function setStars(n) {
     let html = '';
-    for (let i = 0; i < 4; i++) html += i < n ? '★' : '<span class="off">★</span>';
+    for (let i = 0; i < 4; i++) {
+      html += i < n ? '★' : '<span class="off">★</span>';
+    }
     starsEl.innerHTML = html;
   }
 
@@ -34,9 +46,56 @@ export function createHud() {
       : pct > 25 ? 'linear-gradient(90deg,#f2c200,#ff9c1a)' : 'linear-gradient(90deg,#e23c2e,#ff7a5c)';
   }
 
-  function setMoney(m) { moneyEl.textContent = '$' + m.toLocaleString('en-US'); }
-  function setSpeed(mph) { speedEl.innerHTML = Math.round(mph) + ' <small>mph</small>'; }
-  function setMission(html) { missionEl.innerHTML = html; }
+  function setMoney(m) {
+    moneyEl.textContent = '$' + m.toLocaleString('en-US');
+  }
+
+  function setSpeed(mph) {
+    speedEl.innerHTML = Math.round(mph) + ' <small>mph</small>';
+  }
+
+  function setMission(html) {
+    missionEl.innerHTML = html;
+  }
+
+  // Stage line under the mission text: "JOB 2/4" and the next job's title.
+  // The DOM is touched only when the line actually changes.
+  function setStage(index, total, nextTitle) {
+    const html = '<b>JOB ' + index + '/' + total + '</b><br>NEXT: ' + nextTitle;
+    if (html === lastStageHtml) return;
+    lastStageHtml = html;
+    stageEl.innerHTML = html;
+  }
+
+  // Police-response panel: one line per active cruiser, callsign, live role
+  // and distance. Hidden while the heat is off. Rebuilt only when a unit's
+  // line changes, so the per-frame call costs nothing when the chase is steady.
+  function setPolice(units) {
+    if (!units || units.length === 0) {
+      if (lastPoliceHtml !== '') {
+        lastPoliceHtml = '';
+        policeEl.style.display = 'none';
+      }
+      return;
+    }
+    const html = units.map((u) =>
+      '<div>' + u.callsign + ' &middot; ' + u.role + ' &middot; ' + u.dist + 'm</div>').join('');
+    if (html === lastPoliceHtml) return;
+    lastPoliceHtml = html;
+    policeEl.style.display = 'block';
+    policeListEl.innerHTML = html;
+  }
+
+  // Dialogue box: a named character speaks the current job's own story line.
+  // The DOM is touched only when the speaker or the line changes.
+  function setDialogue(name, text) {
+    const key = name + '\n' + text;
+    if (key === lastDialogueKey) return;
+    lastDialogueKey = key;
+    dialogueNameEl.textContent = name;
+    dialogueTextEl.textContent = text;
+    dialogueEl.style.display = 'block';
+  }
 
   function message(title, sub, ms) {
     bannerEl.innerHTML = title + (sub ? '<small>' + sub + '</small>' : '');
@@ -45,9 +104,11 @@ export function createHud() {
     bannerTimer = setTimeout(() => { bannerEl.style.display = 'none'; }, ms || 2600);
   }
 
-  function hideBanner() { bannerEl.style.display = 'none'; }
+  function hideBanner() {
+    bannerEl.style.display = 'none';
+  }
 
-  // Compass: an arrow that points toward the mission marker relative to the
+  // Compass: an arrow pointing toward the mission marker relative to the
   // camera, with the distance in metres. Hidden once the debt is paid.
   function setCompass(angleRad, distM) {
     if (angleRad === null) {
@@ -117,13 +178,27 @@ export function createHud() {
     mm.rotate(Math.atan2(Math.sin(state.player.yaw), Math.cos(state.player.yaw)) * -1 + Math.PI);
     mm.fillStyle = '#7dff9b';
     mm.beginPath();
-    mm.moveTo(0, -7); mm.lineTo(5, 6); mm.lineTo(-5, 6); mm.closePath();
+    mm.moveTo(0, -7);
+    mm.lineTo(5, 6);
+    mm.lineTo(-5, 6);
+    mm.closePath();
     mm.fill();
     mm.restore();
   }
 
   return {
-    setStars, setHealth, setMoney, setSpeed, setMission, message, hideBanner, drawMinimap, setCompass,
+    setStars,
+    setHealth,
+    setMoney,
+    setSpeed,
+    setMission,
+    setStage,
+    setPolice,
+    setDialogue,
+    message,
+    hideBanner,
+    drawMinimap,
+    setCompass,
     showStart() { startEl.style.display = 'flex'; pauseEl.style.display = 'none'; gameoverEl.style.display = 'none'; },
     hideStart() { startEl.style.display = 'none'; },
     showPause() { pauseEl.style.display = 'flex'; },

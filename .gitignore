@@ -1,3 +1,4 @@
+# v5: local build output, dependencies and OS files stay out of the repo.
 node_modules/
 out/
 .DS_Store

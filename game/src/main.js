@@ -102,6 +102,7 @@ window.__game = {
 const keys = {};
 let dragging = false;
 let lastPointer = { x: 0, y: 0 };
+let downAt = null;
 
 window.addEventListener('keydown', (e) => {
   keys[e.code] = true;
@@ -118,8 +119,8 @@ window.addEventListener('keyup', (e) => { keys[e.code] = false; });
 canvas.addEventListener('pointerdown', (e) => {
   dragging = true;
   lastPointer = { x: e.clientX, y: e.clientY };
+  downAt = { x: e.clientX, y: e.clientY };
   audio.init();
-  if (game.mode === 'playing' && !game.inCar) doPunch();
 });
 canvas.addEventListener('pointermove', (e) => {
   if (!dragging) return;
@@ -127,7 +128,17 @@ canvas.addEventListener('pointermove', (e) => {
   game.camPitch = Math.max(0.08, Math.min(1.1, game.camPitch + (e.clientY - lastPointer.y) * 0.003));
   lastPointer = { x: e.clientX, y: e.clientY };
 });
-window.addEventListener('pointerup', () => { dragging = false; });
+window.addEventListener('pointerup', (e) => {
+  dragging = false;
+  // A click (barely moved) is a punch; a drag is just looking around, and
+  // must not punch — dragging to look used to swing at pedestrians and raise
+  // the wanted level by accident.
+  if (downAt && game.mode === 'playing' && !game.inCar) {
+    const moved = Math.hypot(e.clientX - downAt.x, e.clientY - downAt.y);
+    if (moved < 8) doPunch();
+  }
+  downAt = null;
+});
 
 function readInput() {
   return {
@@ -166,7 +177,10 @@ game.exitCar = function (silent) {
 };
 
 function toggleCar() {
-  if (game.inCar) { game.exitCar(false); return; }
+  if (game.inCar) {
+    game.exitCar(false);
+    return;
+  }
   const car = vehicles.nearestCar(player.pos, 4.5);
   if (car) game.enterCar(car);
 }
@@ -250,14 +264,21 @@ function resumeGame() {
   audio.click();
 }
 
+// Mission block + stage + dialogue, refreshed whenever the mission changes.
 function updateMissionHud() {
   if (missions.done) {
     hud.setMission('<b>DEBT PAID</b><br>Neon Bay is yours — free roam.');
+    hud.setStage(missions.total(), missions.total(), missions.nextTitle());
+    hud.setDialogue('VINNIE \u201cTHE LEDGER\u201d MARLOW', missions.current().story);
   } else {
     const def = missions.current();
     hud.setMission('<b>' + def.title + '</b><br>' + def.text);
+    hud.setStage(missions.index + 1, missions.total(), missions.nextTitle());
+    const speaker = missions.index === 2 ? 'RICO' : 'VINNIE \u201cTHE LEDGER\u201d MARLOW';
+    hud.setDialogue(speaker, def.story);
   }
 }
+game.updateMissionHud = updateMissionHud;
 
 document.getElementById('startBtn').addEventListener('click', () => startGame(false));
 document.getElementById('continueBtn').addEventListener('click', () => startGame(true));
@@ -324,7 +345,7 @@ function animate() {
     }
     vehicles.updateTraffic(dt);
     pedestrians.update(dt, player.pos, game.inCar && game.currentCar ? Math.abs(game.currentCar.speed) : player.speed);
-    police.update(dt, game.focusPos(), game.inCar && game.currentCar ? Math.abs(game.currentCar.speed) : player.speed, onDamage);
+    police.update(dt, game.focusPos(), game.inCar && game.currentCar ? Math.abs(game.currentCar.speed) : player.speed, onDamage, game.inCar && !!game.currentCar);
     effects.update(dt);
 
     // Missions.
@@ -345,6 +366,7 @@ function animate() {
     hud.setStars(police.wanted);
     hud.setHealth(game.health);
     hud.setMoney(game.money);
+    hud.setPolice(police.units());
     const mph = (game.inCar && game.currentCar ? Math.abs(game.currentCar.speed) : player.speed) * 2.2;
     hud.setSpeed(mph);
     // Compass: point the arrow at the mission marker, relative to the camera.
@@ -395,7 +417,7 @@ function animate() {
   hud.setStars(0);
   hud.setHealth(100);
   hud.setMoney(0);
-  hud.setMission('<b>Job 1 — The Pickup</b><br>Pick up the package at 2nd &amp; Palm. $200.');
+  updateMissionHud();
   hud.hideLoading();
 
   // A staged screenshot starts the game at once, after the hooks above.

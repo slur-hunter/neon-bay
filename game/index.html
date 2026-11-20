@@ -18,6 +18,8 @@
   #money { position: absolute; top: 12px; right: 14px; font-size: 22px; font-weight: 800; color: #7dff9b; }
   #mission { position: absolute; top: 48px; right: 14px; max-width: 340px; text-align: right; font-size: 15px; line-height: 1.35; }
   #mission b { color: #ffd23f; }
+  #stage { position: absolute; top: 118px; right: 14px; max-width: 340px; text-align: right; font-size: 13px; line-height: 1.4; color: #dfeaff; }
+  #stage b { color: #ffd23f; }
   #speed { position: absolute; bottom: 14px; right: 14px; font-size: 26px; font-weight: 800; }
   #speed small { font-size: 13px; color: #cfe3ff; }
   #hint { position: absolute; bottom: 14px; left: 14px; font-size: 13px; color: #dfeaff; background: rgba(0,0,0,.45); padding: 6px 10px; border-radius: 6px; line-height: 1.5; }
@@ -26,6 +28,11 @@
   #banner small { display: block; font-size: 16px; color: #fff; margin-top: 6px; }
   #compass { position: absolute; top: 12px; left: 50%; transform: translateX(-50%); text-align: center; font-size: 13px; color: #ffe45e; }
   #compassArrow { display: inline-block; font-size: 26px; line-height: 1; color: #ffd23f; transition: transform 0.15s linear; }
+  #policePanel { position: absolute; top: 64px; left: 14px; max-width: 260px; font-size: 13px; line-height: 1.5; background: rgba(0,0,0,.5); border: 1px solid rgba(255,80,80,.7); border-radius: 6px; padding: 6px 10px; display: none; }
+  #policePanel .ptitle { color: #ff8c8c; font-weight: 800; letter-spacing: 1px; font-size: 12px; }
+  #dialogue { position: absolute; bottom: 58px; left: 14px; max-width: 420px; font-size: 14px; line-height: 1.4; background: rgba(0,0,0,.55); border-left: 3px solid #ffd23f; border-radius: 4px; padding: 8px 12px; display: none; }
+  #dialogueName { color: #ffd23f; font-weight: 800; font-size: 12px; letter-spacing: 1px; }
+  #dialogueText { color: #fff; }
   .overlay { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; background: linear-gradient(180deg, rgba(20,30,60,.55), rgba(255,140,60,.35)); color: #fff; pointer-events: auto; }
   .overlay h1 { font-size: 64px; margin: 0; letter-spacing: 6px; color: #ffe45e; text-shadow: 0 0 24px rgba(255,120,40,.9), 0 3px 0 #c33; }
   .overlay h2 { font-size: 20px; margin: 8px 0 0; color: #ffd9a0; font-weight: 600; }
@@ -50,11 +57,14 @@
     </div>
     <div id="money">$0</div>
     <div id="mission"></div>
+    <div id="stage"></div>
     <canvas id="minimap" width="180" height="180"></canvas>
     <div id="speed">0 <small>mph</small></div>
     <div id="hint">WASD move / drive &nbsp;·&nbsp; Mouse drag look &nbsp;·&nbsp; E enter / exit car &nbsp;·&nbsp; Click punch &nbsp;·&nbsp; Space brake &nbsp;·&nbsp; P pause</div>
     <div id="compass"><span id="compassArrow">▲</span><br><span id="compassDist"></span></div>
     <div id="banner"></div>
+    <div id="policePanel"><div class="ptitle">BAY CITY PD — RESPONSE</div><div id="policeList"></div></div>
+    <div id="dialogue"><div id="dialogueName"></div><div id="dialogueText"></div></div>
   </div>
   <div id="start" class="overlay">
     <h1>NEON BAY</h1>

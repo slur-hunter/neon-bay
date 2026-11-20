@@ -1,5 +1,6 @@
-// audio.js — every sound is synthesized with WebAudio: no audio files, no network.
-// The context starts lazily on the first user gesture, so headless runs stay quiet.
+// audio.js — every sound is synthesized with WebAudio: no audio files, no
+// network. The context starts lazily on the first user gesture, so headless
+// runs stay quiet.
 export function createAudio() {
   let ctx = null;
   let engineOsc = null;
@@ -65,7 +66,11 @@ export function createAudio() {
 
   return {
     init,
-    setMuted(m) { muted = m; if (engineGain) engineGain.gain.value = 0; if (sirenGain) sirenGain.gain.value = 0; },
+    setMuted(m) {
+      muted = m;
+      if (engineGain) engineGain.gain.value = 0;
+      if (sirenGain) sirenGain.gain.value = 0;
+    },
     engine(speed01) {
       if (!ctx || muted || !engineGain) return;
       try {
