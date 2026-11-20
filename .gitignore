@@ -1,4 +1,4 @@
-# v5: local build output, dependencies and OS files stay out of the repo.
-node_modules/
+# Neon Bay v6 — local build output and editor files, never committed
 out/
+node_modules/
 .DS_Store

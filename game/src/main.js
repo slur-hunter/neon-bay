@@ -1,61 +1,68 @@
-// main.js — Neon Bay: bootstrap, game loop, camera, input, and the wiring that
-// ties the city, the player, the cars, the police, the missions and the HUD
-// together. The debug hooks are wired first, before any shot is staged.
+// Neon Bay — bootstrap, input, camera, car stealing, damage, missions and
+// the game loop. The debug hooks are wired FIRST, before any shot staging.
+
 import * as THREE from 'three';
 import { buildCity } from './city.js';
-import { createPlayer } from './player.js';
-import { createVehicles } from './vehicles.js';
-import { createPedestrians } from './pedestrians.js';
-import { createPolice } from './police.js';
-import { createMissions } from './missions.js';
-import { createCombat } from './combat.js';
-import { createEffects } from './effects.js';
-import { createHud } from './hud.js';
-import { createAudio } from './audio.js';
-import { loadSave, saveGame, clearSave } from './save.js';
-import { createShots } from './shots.js';
+import { createHero } from './hero.js';
+import { createAutos } from './autos.js';
+import { createCrowd } from './crowd.js';
+import { createPatrol } from './patrol.js';
+import { createErrands } from './errands.js';
+import { createFists } from './fists.js';
+import { createSparks } from './sparks.js';
+import { createSound } from './sound.js';
+import { loadSave, saveGame, clearSave } from './pocket.js';
+import { createDisplay } from './display.js';
+import { createStage } from './stage.js';
 
-const canvas = document.getElementById('gl');
-const renderer = new THREE.WebGLRenderer({ canvas, antialias: true });
-renderer.setSize(window.innerWidth, window.innerHeight);
+// Debug hooks, wired before anything else runs.
+window.__errors = [];
+window.__ready = false;
+window.__shotReady = false;
+window.__shot = null;
+window.addEventListener('error', (event) => {
+  window.__errors.push(String(event.message ?? event.error ?? 'error'));
+});
+
+const renderer = new THREE.WebGLRenderer({ antialias: true });
 renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+renderer.setSize(window.innerWidth, window.innerHeight);
 renderer.shadowMap.enabled = true;
 renderer.shadowMap.type = THREE.PCFSoftShadowMap;
 renderer.outputColorSpace = THREE.SRGBColorSpace;
 renderer.toneMapping = THREE.ACESFilmicToneMapping;
 renderer.toneMappingExposure = 1.15;
+document.getElementById('gl').appendChild(renderer.domElement);
 
-const scene = new THREE.Scene();
 const camera = new THREE.PerspectiveCamera(62, window.innerWidth / window.innerHeight, 0.1, 900);
-
-window.addEventListener('resize', () => {
-  camera.aspect = window.innerWidth / window.innerHeight;
-  camera.updateProjectionMatrix();
-  renderer.setSize(window.innerWidth, window.innerHeight);
-});
-
-// ---- debug hooks, wired before anything else runs (and before shots stage) ----
-window.__errors = [];
-window.addEventListener('error', (e) => window.__errors.push(String(e.message || e.error)));
-window.__ready = false;
-window.__shotReady = false;
-window.__shot = null;
-
-const city = buildCity(scene);
-const player = createPlayer(scene, city);
-const vehicles = createVehicles(scene, city);
-const pedestrians = createPedestrians(scene, city);
-const police = createPolice(scene, city, vehicles);
-const missions = createMissions(scene);
-const combat = createCombat();
-const effects = createEffects(scene);
-const hud = createHud();
-const audio = createAudio();
+const scene = new THREE.Scene();
 const clock = new THREE.Clock();
 
+const city = buildCity(scene);
+const hero = createHero(scene);
+const autos = createAutos(scene, city);
+const crowd = createCrowd(scene);
+const patrol = createPatrol(scene, city, autos);
+const errands = createErrands(scene);
+const fists = createFists();
+const sparks = createSparks(scene);
+const sound = createSound();
+const display = createDisplay();
+
 const game = {
-  scene, camera, renderer, city, player, vehicles, pedestrians, police, missions,
-  combat, effects, hud, audio,
+  scene,
+  camera,
+  renderer,
+  city,
+  hero,
+  autos,
+  crowd,
+  patrol,
+  errands,
+  fists,
+  sparks,
+  sound,
+  display,
   mode: 'menu',
   money: 0,
   health: 100,
@@ -68,363 +75,392 @@ const game = {
   startTime: performance.now(),
   camYaw: Math.PI,
   camPitch: 0.32,
-  focusPos() {
-    return game.inCar && game.currentCar ? game.currentCar.pos : player.pos;
-  },
+  muted: false,
 };
 
-game.shots = createShots(game);
+game.focusPos = function focusPos() {
+  return game.inCar && game.currentCar ? game.currentCar.pos : hero.pos;
+};
 
-// Debug handle for tests and screenshots: state, staged shot, live values.
+game.shots = createStage(game);
+
 window.__game = {
   debug: {
     get mode() { return game.mode; },
     get money() { return game.money; },
     get health() { return game.health; },
-    get wanted() { return police.wanted; },
-    get missionIndex() { return missions.index; },
-    get missionsDone() { return missions.done; },
+    get wanted() { return patrol.wanted; },
+    get missionIndex() { return errands.index; },
+    get missionsDone() { return errands.done; },
     get inCar() { return game.inCar; },
-    get playerPos() { return { x: player.pos.x, z: player.pos.z }; },
-    get speed() { return game.inCar && game.currentCar ? game.currentCar.speed : player.speed; },
+    get playerPos() { return { x: hero.pos.x, z: hero.pos.z }; },
+    get speed() {
+      return game.inCar && game.currentCar ? game.currentCar.speed : hero.speed;
+    },
     get shot() { return game.shotNumber; },
     get frames() { return game.frames; },
     get camYaw() { return game.camYaw; },
     get cameraMode() { return game.cameraMode; },
-    get carYaw() { return game.inCar && game.currentCar ? game.currentCar.yaw : null; },
-    get carPos() { return game.inCar && game.currentCar ? { x: game.currentCar.pos.x, z: game.currentCar.pos.z } : null; },
-    get policeCount() { return police.police.length; },
-    get policePos() { return police.police.map((c) => ({ x: Math.round(c.pos.x), z: Math.round(c.pos.z) })); },
+    get carYaw() { return game.currentCar ? game.currentCar.yaw : null; },
+    get carPos() {
+      return game.currentCar ? { x: game.currentCar.pos.x, z: game.currentCar.pos.z } : null;
+    },
+    get policeCount() { return patrol.police.length; },
+    get policePos() {
+      return patrol.police.map((u) => ({ x: u.pos.x, z: u.pos.z }));
+    },
   },
 };
 
 // ---- input ----
 const keys = {};
-let dragging = false;
-let lastPointer = { x: 0, y: 0 };
-let downAt = null;
-
-window.addEventListener('keydown', (e) => {
-  keys[e.code] = true;
-  if (e.code === 'KeyP' || e.code === 'Escape') {
-    if (game.mode === 'playing') pauseGame();
-    else if (game.mode === 'paused') resumeGame();
-  }
-  if (e.code === 'KeyM') audio.setMuted(!audio.muted);
-  if (e.code === 'KeyE' && game.mode === 'playing') toggleCar();
-  if (e.code === 'Space') e.preventDefault();
-});
-window.addEventListener('keyup', (e) => { keys[e.code] = false; });
-
-canvas.addEventListener('pointerdown', (e) => {
-  dragging = true;
-  lastPointer = { x: e.clientX, y: e.clientY };
-  downAt = { x: e.clientX, y: e.clientY };
-  audio.init();
-});
-canvas.addEventListener('pointermove', (e) => {
-  if (!dragging) return;
-  game.camYaw -= (e.clientX - lastPointer.x) * 0.005;
-  game.camPitch = Math.max(0.08, Math.min(1.1, game.camPitch + (e.clientY - lastPointer.y) * 0.003));
-  lastPointer = { x: e.clientX, y: e.clientY };
-});
-window.addEventListener('pointerup', (e) => {
-  dragging = false;
-  // A click (barely moved) is a punch; a drag is just looking around, and
-  // must not punch — dragging to look used to swing at pedestrians and raise
-  // the wanted level by accident.
-  if (downAt && game.mode === 'playing' && !game.inCar) {
-    const moved = Math.hypot(e.clientX - downAt.x, e.clientY - downAt.y);
-    if (moved < 8) doPunch();
-  }
-  downAt = null;
-});
+let dragStart = null;
+let dragMoved = 0;
 
 function readInput() {
   return {
-    f: !!keys.KeyW || !!keys.ArrowUp,
-    b: !!keys.KeyS || !!keys.ArrowDown,
-    l: !!keys.KeyA || !!keys.ArrowLeft,
-    r: !!keys.KeyD || !!keys.ArrowRight,
-    run: !!keys.ShiftLeft || !!keys.ShiftRight,
-    brake: !!keys.Space,
+    f: keys.KeyW || keys.ArrowUp || false,
+    b: keys.KeyS || keys.ArrowDown || false,
+    l: keys.KeyA || keys.ArrowLeft || false,
+    r: keys.KeyD || keys.ArrowRight || false,
+    run: keys.ShiftLeft || keys.ShiftRight || false,
+    brake: keys.Space || false,
   };
 }
 
-// ---- car enter / exit ----
-game.enterCar = function (car) {
-  if (!car || car.isPolice) return false;
-  if (game.inCar) return false;
+window.addEventListener('keydown', (event) => {
+  if (event.code === 'Space') event.preventDefault();
+  keys[event.code] = true;
+  if (event.code === 'KeyP' || event.code === 'Escape') {
+    if (game.mode === 'playing') pauseGame();
+    else if (game.mode === 'paused') resumeGame();
+  }
+  if (event.code === 'KeyM') {
+    game.muted = !game.muted;
+    sound.setMuted(game.muted);
+  }
+  if (event.code === 'KeyE' && game.mode === 'playing') toggleCar();
+});
+window.addEventListener('keyup', (event) => {
+  keys[event.code] = false;
+});
+
+renderer.domElement.addEventListener('pointerdown', (event) => {
+  sound.init();
+  dragStart = { x: event.clientX, y: event.clientY };
+  dragMoved = 0;
+});
+renderer.domElement.addEventListener('pointermove', (event) => {
+  if (!dragStart) return;
+  const dx = event.clientX - dragStart.x;
+  const dy = event.clientY - dragStart.y;
+  dragMoved = Math.max(dragMoved, Math.hypot(dx, dy));
+  game.camYaw -= dx * 0.005;
+  game.camPitch = Math.max(0.08, Math.min(1.1, game.camPitch + dy * 0.003));
+  dragStart = { x: event.clientX, y: event.clientY };
+});
+renderer.domElement.addEventListener('pointerup', () => {
+  // A click punches; a drag only looks around.
+  if (dragStart && dragMoved < 8 && game.mode === 'playing' && !game.inCar) doPunch();
+  dragStart = null;
+});
+
+window.addEventListener('resize', () => {
+  camera.aspect = window.innerWidth / window.innerHeight;
+  camera.updateProjectionMatrix();
+  renderer.setSize(window.innerWidth, window.innerHeight);
+});
+
+// ---- cars ----
+function enterCar(car) {
+  if (!car || game.inCar || car.isPolice) return;
   game.inCar = true;
   game.currentCar = car;
   car.kind = 'driven';
-  player.group.visible = false;
-  police.addWanted(1);
-  hud.message('CAR STOLEN', 'The heat is on — lose the cops or outrun them.', 2600);
-  audio.crash();
-  return true;
-};
+  hero.group.visible = false;
+  patrol.addWanted(1);
+  display.message('CAR STOLEN', 'The heat is on — lose the cops or outrun them.', 2600);
+  sound.crash();
+}
 
-game.exitCar = function (silent) {
+function exitCar(silent) {
   if (!game.inCar || !game.currentCar) return;
   const car = game.currentCar;
-  player.reset(car.pos.x + Math.sin(car.yaw + Math.PI / 2) * 3, car.pos.z + Math.cos(car.yaw + Math.PI / 2) * 3, car.yaw);
+  hero.reset(
+    car.pos.x + Math.sin(car.yaw + Math.PI / 2) * 3,
+    car.pos.z + Math.cos(car.yaw + Math.PI / 2) * 3,
+    car.yaw,
+  );
   car.speed = 0;
   game.inCar = false;
   game.currentCar = null;
-  player.group.visible = true;
-  if (!silent) audio.click();
-};
+  hero.group.visible = true;
+  if (!silent) sound.click();
+}
 
 function toggleCar() {
   if (game.inCar) {
-    game.exitCar(false);
+    exitCar(false);
     return;
   }
-  const car = vehicles.nearestCar(player.pos, 4.5);
-  if (car) game.enterCar(car);
+  const car = autos.nearestCar(hero.pos, 4.5);
+  if (car) enterCar(car);
 }
 
-// ---- combat ----
+// ---- combat / damage ----
 function doPunch() {
-  if (game.inCar) return;
-  player.punch();
-  combat.punch(player.pos, player.yaw, [
-    ...pedestrians.list.map((p) => ({ pos: p.pos, radius: 0.5, kind: 'ped', ref: p })),
-    ...police.police.map((c) => ({ pos: c.pos, radius: 2.0, kind: 'police', ref: c })),
-  ]).forEach((t) => {
-    if (t.kind === 'ped') {
-      pedestrians.knockDown(t.ref, player.pos);
-      effects.burst(t.pos.x, 1.2, t.pos.z, 0xffe45e, 10);
-      if (police.police.some((c) => Math.hypot(c.pos.x - player.pos.x, c.pos.z - player.pos.z) < 40)) {
-        police.addWanted(1);
-      }
-    } else {
-      effects.burst(t.pos.x, 1.2, t.pos.z, 0xff9040, 14);
-      effects.shake(0.35);
-      police.addWanted(1);
+  hero.punch();
+  const targets = [];
+  for (const ped of crowd.list) {
+    if (ped.down <= 0) targets.push({ pos: ped.pos, radius: 0.5, ped });
+  }
+  for (const unit of patrol.police) {
+    targets.push({ pos: unit.pos, radius: 2.0, unit });
+  }
+  const hit = fists.punch(hero.pos, hero.yaw, targets);
+  for (const target of hit) {
+    if (target.ped) {
+      crowd.knockDown(target.ped, hero.pos);
+      sparks.burst(target.ped.pos.x, 1.2, target.ped.pos.z, 0xffd23f, 8);
+      const nearCop = patrol.police.some(
+        (u) => Math.hypot(u.pos.x - hero.pos.x, u.pos.z - hero.pos.z) < 40,
+      );
+      if (nearCop) patrol.addWanted(1);
+    } else if (target.unit) {
+      sparks.burst(target.unit.pos.x, 1.2, target.unit.pos.z, 0xff8c1a, 10);
+      sparks.shake(0.35);
+      patrol.addWanted(1);
     }
-  });
-  audio.punch();
+  }
+  sound.punch();
 }
 
-// ---- damage / game over ----
 function onDamage(amount, push) {
   if (game.mode !== 'playing') return;
   game.health -= amount;
-  effects.shake(0.5);
-  audio.crash();
-  if (game.inCar && game.currentCar && push) {
+  sparks.shake(0.5);
+  sound.crash();
+  if (game.inCar && game.currentCar) {
     game.currentCar.pos.x += push.x;
     game.currentCar.pos.z += push.z;
-  } else if (push) {
-    player.pos.x += push.x;
-    player.pos.z += push.z;
+  } else {
+    hero.pos.x += push.x;
+    hero.pos.z += push.z;
   }
   if (game.health <= 0) {
     game.health = 0;
     game.mode = 'gameover';
-    audio.busted();
-    hud.showGameOver('The Bay City PD finally caught up with Rico. The debt is still due — $' + game.money + ' earned.');
-    saveGame({ money: game.money, missionIndex: missions.index });
+    sound.busted();
+    display.showGameOver(
+      `The Bay City PD finally caught up with Rico. The debt is still due — $${game.money} earned.`,
+    );
+    saveGame({ money: game.money, missionIndex: errands.index });
   }
 }
+
+// ---- missions / HUD ----
+function updateMissionHud() {
+  if (errands.done) {
+    display.setMission('DEBT PAID', 'Neon Bay is yours — free roam.');
+    display.setStage(4, 4, 'DEBT PAID');
+    const last = errands.defs[errands.defs.length - 1];
+    display.setDialogue(last.speaker, last.story);
+    return;
+  }
+  const job = errands.current();
+  display.setMission(job.title, job.text);
+  display.setStage(errands.index + 1, errands.total(), errands.nextTitle());
+  display.setDialogue(job.speaker, job.story);
+}
+
+game.updateMissionHud = updateMissionHud;
+game.hideOverlays = function hideOverlays() {
+  display.hideStart();
+  display.hidePause();
+  display.hideGameOver();
+  display.hideLoading();
+};
+game.exitCar = exitCar;
+game.enterCar = enterCar;
 
 // ---- flow ----
 function startGame(fromSave) {
   const save = fromSave ? loadSave() : null;
   game.money = save ? save.money : 0;
   game.health = 100;
-  missions.reset(save ? save.missionIndex : 0);
-  police.setWanted(0);
-  player.reset(0, 20, Math.PI);
-  player.group.visible = true;
+  errands.reset(save ? save.missionIndex : 0);
+  patrol.setWanted(0);
+  hero.reset(28, 0, Math.PI);
   game.inCar = false;
   game.currentCar = null;
+  hero.group.visible = true;
   game.mode = 'playing';
   game.cameraMode = 'follow';
-  hud.hideStart();
-  hud.hideGameOver();
-  hud.hideLoading();
-  audio.init();
-  audio.click();
+  display.hideStart();
+  display.hidePause();
+  display.hideGameOver();
+  sound.init();
+  sound.click();
   updateMissionHud();
-  hud.message('NEON BAY', 'Pay off the $1,200 debt — four jobs.', 3200);
+  display.message('NEON BAY', 'Pay off the $1,200 debt — four jobs.', 3200);
 }
 
 function pauseGame() {
   game.mode = 'paused';
-  hud.showPause();
-  saveGame({ money: game.money, missionIndex: missions.index });
+  display.showPause();
+  saveGame({ money: game.money, missionIndex: errands.index });
 }
 
 function resumeGame() {
   game.mode = 'playing';
-  hud.hidePause();
-  audio.click();
+  display.hidePause();
+  sound.click();
 }
-
-// Mission block + stage + dialogue, refreshed whenever the mission changes.
-function updateMissionHud() {
-  if (missions.done) {
-    hud.setMission('<b>DEBT PAID</b><br>Neon Bay is yours — free roam.');
-    hud.setStage(missions.total(), missions.total(), missions.nextTitle());
-    hud.setDialogue('VINNIE \u201cTHE LEDGER\u201d MARLOW', missions.current().story);
-  } else {
-    const def = missions.current();
-    hud.setMission('<b>' + def.title + '</b><br>' + def.text);
-    hud.setStage(missions.index + 1, missions.total(), missions.nextTitle());
-    const speaker = missions.index === 2 ? 'RICO' : 'VINNIE \u201cTHE LEDGER\u201d MARLOW';
-    hud.setDialogue(speaker, def.story);
-  }
-}
-game.updateMissionHud = updateMissionHud;
 
 document.getElementById('startBtn').addEventListener('click', () => startGame(false));
 document.getElementById('continueBtn').addEventListener('click', () => startGame(true));
 document.getElementById('resumeBtn').addEventListener('click', resumeGame);
-document.getElementById('restartBtn').addEventListener('click', () => { clearSave(); startGame(false); });
+document.getElementById('restartBtn').addEventListener('click', () => {
+  clearSave();
+  startGame(false);
+});
 
 // ---- camera ----
 function updateCamera(dt) {
-  const shake = effects.shakeOffset();
+  const shake = sparks.shakeOffset();
+  const focus = game.focusPos();
   if (game.cameraMode === 'shot' && game.shotCam) {
-    // Snap: position is set directly from the staged offset every frame.
-    const focus = game.focusPos();
     camera.position.set(
       focus.x + game.shotCam.offset.x + shake.x,
-      focus.y + game.shotCam.offset.y + shake.y,
+      game.shotCam.offset.y + shake.y,
       focus.z + game.shotCam.offset.z,
     );
     camera.lookAt(
       focus.x + game.shotCam.lookOffset.x,
-      focus.y + game.shotCam.lookOffset.y,
+      game.shotCam.lookOffset.y,
       focus.z + game.shotCam.lookOffset.z,
     );
     return;
   }
-
-  const focus = game.focusPos();
   if (game.cameraMode === 'menu') {
     const t = performance.now() / 1000 * 0.05;
-    camera.position.set(Math.sin(t) * 120, 70, Math.cos(t) * 120);
+    camera.position.set(Math.sin(t) * 120 + shake.x, 70 + shake.y, Math.cos(t) * 120);
     camera.lookAt(0, 0, 0);
     return;
   }
-
-  // Follow: ease the orbit yaw toward behind the player/car, mouse drag overrides.
-  const targetYaw = (game.inCar && game.currentCar ? game.currentCar.yaw : player.yaw) + Math.PI;
-  let dy = targetYaw - game.camYaw;
-  while (dy > Math.PI) dy -= Math.PI * 2;
-  while (dy < -Math.PI) dy += Math.PI * 2;
-  game.camYaw += dy * Math.min(1, dt * 2.2);
-
+  // Follow: ease the orbit behind the player or car while moving.
+  const yaw = game.inCar && game.currentCar ? game.currentCar.yaw : hero.yaw;
+  const moving = game.inCar
+    ? Math.abs(game.currentCar.speed) > 1
+    : hero.moving;
+  if (moving) {
+    const target = yaw + Math.PI;
+    let dy = target - game.camYaw;
+    while (dy > Math.PI) dy -= Math.PI * 2;
+    while (dy < -Math.PI) dy += Math.PI * 2;
+    game.camYaw += dy * Math.min(1, dt * 2.2);
+  }
   const dist = game.inCar ? 12 : 9;
   const height = game.inCar ? 5.2 : 4.2;
-  const cx = focus.x + Math.sin(game.camYaw) * dist;
-  const cz = focus.z + Math.cos(game.camYaw) * dist;
   const cy = height + Math.sin(game.camPitch) * dist * 0.4;
-  camera.position.set(cx + shake.x, cy + shake.y, cz);
+  camera.position.set(
+    focus.x + Math.sin(game.camYaw) * dist + shake.x,
+    cy + shake.y,
+    focus.z + Math.cos(game.camYaw) * dist,
+  );
   camera.lookAt(focus.x, focus.y + 1.6, focus.z);
 }
 
-// ---- main loop ----
+// ---- loop ----
 function animate() {
   requestAnimationFrame(animate);
   const dt = Math.min(clock.getDelta(), 0.05);
   game.frames += 1;
+  game.shots.tick();
+  const input = readInput();
+  const focus = game.focusPos();
 
   if (game.mode === 'playing') {
-    const input = readInput();
-    combat.update(dt);
-
+    fists.update(dt);
     if (game.inCar && game.currentCar) {
-      vehicles.driveCar(game.currentCar, dt, input);
+      autos.driveCar(game.currentCar, dt, input);
     } else {
-      player.update(dt, input, game.camYaw);
+      hero.update(dt, input, game.camYaw, city);
     }
-    vehicles.updateTraffic(dt);
-    pedestrians.update(dt, player.pos, game.inCar && game.currentCar ? Math.abs(game.currentCar.speed) : player.speed);
-    police.update(dt, game.focusPos(), game.inCar && game.currentCar ? Math.abs(game.currentCar.speed) : player.speed, onDamage, game.inCar && !!game.currentCar);
-    effects.update(dt);
+    autos.updateTraffic(dt);
+    crowd.update(dt, focus, game.inCar && game.currentCar ? game.currentCar.speed : hero.speed);
+    patrol.update(dt, focus, game.inCar, onDamage);
+    sparks.update(dt);
 
-    // Missions.
-    const done = missions.update(dt, game.focusPos());
+    const done = errands.update(dt, focus);
     if (done) {
       game.money += done.pay;
-      audio.pickup();
-      effects.burst(game.focusPos().x, 2, game.focusPos().z, 0xffd23f, 24);
-      hud.message('MISSION COMPLETE', '+$' + done.pay + ' — ' + done.story, 3600);
-      if (missions.done) {
-        hud.message('DEBT PAID', 'Neon Bay is Rico\u2019s again — free roam.', 5000);
+      sound.pickup();
+      sparks.burst(done.pos[0], 2, done.pos[1], 0xffd23f, 14);
+      display.message('MISSION COMPLETE', `+$${done.pay} — ${done.story}`, 3600);
+      if (errands.done) {
+        display.message('DEBT PAID', 'Neon Bay is yours — free roam.', 5000);
       }
       updateMissionHud();
-      saveGame({ money: game.money, missionIndex: missions.index });
+      saveGame({ money: game.money, missionIndex: errands.index });
     }
 
-    // HUD.
-    hud.setStars(police.wanted);
-    hud.setHealth(game.health);
-    hud.setMoney(game.money);
-    hud.setPolice(police.units());
-    const mph = (game.inCar && game.currentCar ? Math.abs(game.currentCar.speed) : player.speed) * 2.2;
-    hud.setSpeed(mph);
-    // Compass: point the arrow at the mission marker, relative to the camera.
-    if (!missions.done) {
-      const mp = missions.markerPos();
-      const fp = game.focusPos();
-      const dx = mp.x - fp.x;
-      const dz = mp.z - fp.z;
-      const headingToMarker = Math.atan2(dx, dz);
-      const cameraForward = game.camYaw + Math.PI;
-      let rel = headingToMarker - cameraForward;
-      while (rel > Math.PI) rel -= Math.PI * 2;
-      while (rel < -Math.PI) rel += Math.PI * 2;
-      hud.setCompass(-rel, Math.hypot(dx, dz));
+    // HUD, every frame.
+    display.setStars(patrol.wanted);
+    display.setHealth(game.health);
+    display.setMoney(game.money);
+    const speedMph = (game.inCar && game.currentCar ? game.currentCar.speed : hero.speed) * 2.2;
+    display.setSpeed(speedMph);
+    const marker = errands.markerPos();
+    if (marker && !errands.done) {
+      const bearing = Math.atan2(marker.x - focus.x, marker.z - focus.z);
+      const arrowAngle = game.camYaw + Math.PI - bearing;
+      display.setCompass(arrowAngle, Math.hypot(marker.x - focus.x, marker.z - focus.z));
     } else {
-      hud.setCompass(null, 0);
+      display.setCompass(null, 0);
     }
-    hud.drawMinimap({
-      player: { x: player.pos.x, z: player.pos.z, yaw: player.yaw },
-      cars: vehicles.cars.filter((c) => !c.isPolice),
-      police: police.police,
-      mission: missions.done ? null : missions.markerPos(),
-      missionDone: missions.done,
+    display.drawMinimap({
+      half: city.bounds,
+      blocks: [ -112, -56, 0, 56, 112 ],
+      streets: [ -140, -84, -28, 28, 84, 140 ],
+      player: { x: focus.x, z: focus.z, yaw: game.inCar && game.currentCar ? game.currentCar.yaw : hero.yaw },
+      cars: autos.traffic.map((c) => ({ x: c.pos.x, z: c.pos.z })),
+      police: patrol.police.map((u) => ({ x: u.pos.x, z: u.pos.z })),
+      mission: marker,
+      missionDone: errands.done,
     });
-    audio.engine(game.inCar && game.currentCar ? Math.abs(game.currentCar.speed) / 26 : 0);
-    audio.siren(police.wanted > 0);
+    display.setPolice(patrol.units(focus));
+    sound.engine(Math.min(1, Math.abs(speedMph) / 60));
+    sound.siren(patrol.wanted > 0);
   } else {
-    vehicles.updateTraffic(dt);
-    pedestrians.update(dt, player.pos, 0);
-    effects.update(dt);
+    autos.updateTraffic(dt);
+    crowd.update(dt, hero.pos, 0);
+    sparks.update(dt);
   }
 
   updateCamera(dt);
   renderer.render(scene, camera);
-
   if (!window.__ready) {
     window.__ready = true;
-    hud.hideLoading();
+    display.hideLoading();
   }
   if (game.shots.isReady()) window.__shotReady = true;
 }
 
 // ---- boot ----
-(function boot() {
-  const save = loadSave();
-  if (save && save.money > 0) hud.setContinue(save.money);
-  hud.showStart();
-  hud.setStars(0);
-  hud.setHealth(100);
-  hud.setMoney(0);
-  updateMissionHud();
-  hud.hideLoading();
+const saved = loadSave();
+if (saved && saved.money > 0) display.setContinue(saved.money);
+display.showStart();
+display.setStars(0);
+display.setHealth(100);
+display.setMoney(0);
+display.setMission('Job 1 — The Pickup', 'Pick up the package at the corner of 2nd & Palm. $200.');
+display.setStage(1, 4, 'Job 2 — The Drop');
+display.setDialogue('VINNIE “THE LEDGER” MARLOW', 'Rico grabs the package. One down — the Ledger is watching.');
 
-  // A staged screenshot starts the game at once, after the hooks above.
-  const params = new URLSearchParams(window.location.search);
-  const shot = parseInt(params.get('shot') || '', 10);
-  if (shot >= 1 && shot <= 4) {
-    game.shots.stage(shot);
-  }
-  animate();
-})();
+const params = new URLSearchParams(window.location.search);
+const shotParam = Number(params.get('shot'));
+if (shotParam >= 1 && shotParam <= 4) {
+  game.shots.stage(shotParam);
+}
+animate();
