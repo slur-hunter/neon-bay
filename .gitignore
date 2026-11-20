@@ -1,4 +1,4 @@
-# Neon Bay v6 — local build output and editor files, never committed
+# Neon Bay v7 — local build output and tooling, never committed.
 out/
 node_modules/
 .DS_Store
