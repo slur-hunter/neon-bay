@@ -1,37 +1,58 @@
-// Missions and progression. Four jobs pay off Rico's $1,200 debt to Vinnie
-// "The Ledger" Marlow. RP accrues from job pay; rank is derived from RP.
-// District standing is per-district: missions completed in the district
-// the player is standing in, never a global count.
+// Story jobs for Neon Bay: four jobs Rico works through for Vinnie
+// "The Ledger" Marlow. Each job has stages, a live timer, a stage progress
+// bar and a pay. The staged late-game state is job 4, the last one.
 export const JOBS = [
   {
-    title: 'The Pickup', pay: 200, district: 'Marina',
-    text: 'Pick up the package at the corner of 48th and Harbour.',
-    story: 'Rico grabs the package. One down — the Ledger is watching.',
-    speaker: 'VINNIE "THE LEDGER" MARLOW',
+    id: 1,
+    title: 'The Pickup',
+    desc: 'Pick up the package at the corner of 48th and Harbour.',
+    next: 'The Drop',
     marker: { x: 0, z: -60 },
+    pay: 200,
+    rp: 125,
+    stages: ['Reach the corner', 'Grab the package', 'Clear the street'],
   },
   {
-    title: 'The Drop', pay: 300, district: 'Marina',
-    text: 'Deliver the package to the docks before the heat arrives.',
-    story: 'Drop made. Vinnie counts the bills and nods. Two to go.',
-    speaker: 'VINNIE "THE LEDGER" MARLOW',
-    marker: { x: 120, z: -60 },
+    id: 2,
+    title: 'The Drop',
+    desc: 'Deliver the package to the docks before the heat arrives.',
+    next: 'The Getaway',
+    marker: { x: 60, z: 30 },
+    pay: 350,
+    rp: 140,
+    stages: ['Drive to the docks', 'Hand off the package'],
   },
   {
-    title: 'The Getaway', pay: 300, district: 'Downtown',
-    text: 'Reach the safehouse while the heat is on.',
-    story: 'Rico slips into the safehouse. The sirens fade. One last job.',
-    speaker: 'RICO',
-    marker: { x: -60, z: 120 },
+    id: 3,
+    title: 'The Getaway',
+    desc: 'Lose the cruisers, then reach the beach house on the Strand.',
+    next: 'The Ledger',
+    marker: { x: 60, z: -60 },
+    pay: 600,
+    rp: 160,
+    stages: ['Break the tail', 'Reach the beach house'],
   },
   {
-    title: 'The Payoff', pay: 400, district: 'Downtown',
-    text: "Drive to Vinnie's office and settle the debt.",
-    story: "Debt paid. Neon Bay is Rico's again — free roam, no more jobs.",
-    speaker: 'VINNIE "THE LEDGER" MARLOW',
-    marker: { x: 60, z: 120 },
+    id: 4,
+    title: 'The Ledger',
+    desc: 'Collect from the debtors on the Strand, then settle with Vinnie.',
+    next: 'Settle with Vinnie',
+    marker: { x: 60, z: 0 },
+    pay: 1200,
+    rp: 190,
+    stages: ['Collect the first debt', 'Collect the second debt', 'Settle with Vinnie'],
   },
 ];
+
+export const RANK_NAMES = {
+  D: 'DRIVER',
+  C: 'FIXER',
+  B: 'SHOT CALLER',
+  A: 'KINGPIN',
+  S: 'LEGEND',
+};
+
+export const RANK_FLOORS = { D: 0, C: 100, B: 250, A: 500, S: 800 };
 
 export function rankFor(rp) {
   if (rp >= 800) return 'S';
@@ -41,64 +62,32 @@ export function rankFor(rp) {
   return 'D';
 }
 
-// District by quadrant of the city grid.
-export function districtAt(x, z) {
-  if (x < 0 && z < 0) return 'Old Town';
-  if (x >= 0 && z < 0) return 'Marina';
-  if (x < 0 && z >= 0) return 'Harbour';
-  return 'Downtown';
+export function rankProgress(rp) {
+  const rank = rankFor(rp);
+  const order = ['D', 'C', 'B', 'A', 'S'];
+  const idx = order.indexOf(rank);
+  if (idx >= order.length - 1) return { rank, name: RANK_NAMES[rank], pct: 100, cur: rp, next: rp };
+  const floor = RANK_FLOORS[rank];
+  const nextFloor = RANK_FLOORS[order[idx + 1]];
+  const pct = Math.round(((rp - floor) / (nextFloor - floor)) * 100);
+  return { rank, name: RANK_NAMES[rank], pct, cur: rp, next: nextFloor };
 }
 
-export function makeJobs() {
-  const state = {
-    index: 0,
-    money: 0,
-    rp: 0,
-    doneByDistrict: {},
-    missionsDone: 0,
-    banner: '',
-    bannerTimer: 0,
-  };
+export function formatTimer(seconds) {
+  const s = Math.max(0, Math.floor(seconds));
+  const m = Math.floor(s / 60);
+  const r = s % 60;
+  return m + ':' + String(r).padStart(2, '0');
+}
 
-  function current() {
-    return JOBS[Math.min(state.index, JOBS.length - 1)];
-  }
-  function next() {
-    return JOBS[Math.min(state.index + 1, JOBS.length - 1)];
-  }
-  function standingHere(district) {
-    return (state.doneByDistrict[district] || 0) * 25;
-  }
+// District by quadrant: Downtown north-west, Uptown north-east, Marina
+// south-west, The Strand the beach strip on the east.
+export function districtAt(x, z) {
+  if (x >= 60) return 'The Strand';
+  if (z < 0) return x < 0 ? 'Downtown' : 'Uptown';
+  return x < 0 ? 'Marina' : 'Harbour';
+}
 
-  // Returns the completed job, or null. Completion pays, adds RP, updates
-  // per-district standing and shows the banner with the story line.
-  function tryComplete(px, pz) {
-    if (state.index >= JOBS.length) return null;
-    const job = JOBS[state.index];
-    const dx = px - job.marker.x;
-    const dz = pz - job.marker.z;
-    if (dx * dx + dz * dz > 36) return null; // within 6 m
-    state.money += job.pay;
-    state.rp += Math.round(job.pay / 2) + 25;
-    state.doneByDistrict[job.district] = (state.doneByDistrict[job.district] || 0) + 1;
-    state.missionsDone += 1;
-    state.index += 1;
-    state.banner = `MISSION COMPLETE — ${job.title} +$${job.pay}`;
-    state.bannerTimer = 4;
-    return job;
-  }
-
-  function applySave(save) {
-    state.money = save.money || 0;
-    state.index = Math.max(0, Math.min(JOBS.length, save.missionIndex || 0));
-    state.rp = save.rp || 0;
-    state.missionsDone = state.index;
-  }
-
-  return {
-    state, JOBS, current, next, standingHere, tryComplete, applySave,
-    get money() { return state.money; },
-    get rp() { return state.rp; },
-    get rank() { return rankFor(state.rp); },
-  };
+export function standingFor(doneByDistrict, district) {
+  return (doneByDistrict[district] || 0) * 25;
 }

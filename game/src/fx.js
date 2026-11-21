@@ -1,56 +1,68 @@
-// Small particle bursts (coloured boxes with gravity and fade) and a
-// camera shake amount that decays each frame.
-import * as THREE from 'three';
-import { mulberry32, range } from './rng.js';
+// Visual effects for Neon Bay: the mission marker beam and ring, the
+// mission-complete banner, and the location title card. The banner and the
+// title card are DOM; the beam and ring are 3D.
+import * as THREE from '../vendor/three.module.min.js';
 
-export function makeFx(scene) {
-  const rng = mulberry32(99);
-  const parts = [];
-  const geo = new THREE.BoxGeometry(0.16, 0.16, 0.16);
-  let shakeAmt = 0;
+export function makeMarker() {
+  const group = new THREE.Group();
+  group.name = 'marker';
+  const beamMat = new THREE.MeshBasicMaterial({
+    color: '#ffd23e',
+    transparent: true,
+    opacity: 0.2,
+    side: THREE.DoubleSide,
+    depthWrite: false,
+  });
+  const beam = new THREE.Mesh(new THREE.CylinderGeometry(0.5, 0.5, 18, 16, 1, true), beamMat);
+  beam.position.y = 9;
+  group.add(beam);
+  const ringMat = new THREE.MeshBasicMaterial({
+    color: '#ffd23e',
+    transparent: true,
+    opacity: 0.9,
+    side: THREE.DoubleSide,
+  });
+  const ring = new THREE.Mesh(new THREE.RingGeometry(1.6, 2.2, 32), ringMat);
+  ring.rotation.x = -Math.PI / 2;
+  ring.position.y = 0.08;
+  group.add(ring);
+  group.userData.beam = beam;
+  group.userData.ring = ring;
+  return group;
+}
 
-  function burst(x, y, z, color, n) {
-    const mat = new THREE.MeshBasicMaterial({ color, transparent: true });
-    for (let i = 0; i < (n || 10); i++) {
-      const m = new THREE.Mesh(geo, mat.clone());
-      m.position.set(x, y, z);
-      scene.add(m);
-      parts.push({
-        mesh: m,
-        vx: range(rng, -3, 3), vy: range(rng, 2, 6), vz: range(rng, -3, 3),
-        life: 0.7,
-      });
-    }
-  }
+export function pulseMarker(marker, t) {
+  const s = 1 + Math.sin(t * 3) * 0.08;
+  marker.userData.ring.scale.set(s, s, 1);
+  marker.userData.beam.material.opacity = 0.16 + Math.sin(t * 3) * 0.06;
+}
 
-  function shake(amount) {
-    shakeAmt = Math.max(shakeAmt, amount);
-  }
+export function showBanner(el, text, sub) {
+  if (!el) return;
+  el.textContent = '';
+  const big = document.createElement('div');
+  big.textContent = text;
+  big.className = 'banner-big';
+  const small = document.createElement('div');
+  small.textContent = sub || '';
+  small.className = 'banner-small';
+  el.appendChild(big);
+  el.appendChild(small);
+  el.classList.add('show');
+  window.setTimeout(() => el.classList.remove('show'), 12000);
+}
 
-  function step(dt, camera) {
-    for (let i = parts.length - 1; i >= 0; i--) {
-      const p = parts[i];
-      p.life -= dt;
-      if (p.life <= 0) {
-        scene.remove(p.mesh);
-        p.mesh.material.dispose();
-        parts.splice(i, 1);
-        continue;
-      }
-      p.vy -= 12 * dt;
-      p.mesh.position.x += p.vx * dt;
-      p.mesh.position.y += p.vy * dt;
-      p.mesh.position.z += p.vz * dt;
-      p.mesh.material.opacity = Math.max(0, p.life / 0.7);
-    }
-    if (shakeAmt > 0.001 && camera) {
-      camera.position.x += range(rng, -1, 1) * shakeAmt * 0.12;
-      camera.position.y += range(rng, -1, 1) * shakeAmt * 0.12;
-      shakeAmt *= Math.pow(0.02, dt);
-    } else {
-      shakeAmt = 0;
-    }
-  }
-
-  return { burst, shake, step };
+export function showTitleCard(el, place, sub) {
+  if (!el) return;
+  el.textContent = '';
+  const big = document.createElement('div');
+  big.textContent = place;
+  big.className = 'title-big';
+  const small = document.createElement('div');
+  small.textContent = sub || '';
+  small.className = 'title-small';
+  el.appendChild(big);
+  el.appendChild(small);
+  el.classList.add('show');
+  window.setTimeout(() => el.classList.remove('show'), 12000);
 }

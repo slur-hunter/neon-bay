@@ -1,198 +1,209 @@
-// HUD: every panel the screenshots show, updated only when its content
-// changes. All numbers come from live game state passed in each frame;
-// nothing here is a constant pretending to be data.
-import { STREET_LINES } from './city.js';
+// HUD for Neon Bay: every readout is driven by live game state, never a
+// static label. The density bundle lives here: armour bar, clock, car name
+// with condition and gear, mission timer, stage progress bar, rank name
+// with a respect bar, and a dialogue portrait drawn on a canvas.
+import { formatTimer } from './jobs.js';
 
-const ARROWS = ['↑', '↗', '→', '↘', '↓', '↙', '←', '↖'];
+function el(id) {
+  return document.getElementById(id);
+}
 
-export function makeHud(doc) {
-  const el = (id) => doc.getElementById(id);
-  const starsEl = el('stars');
-  const healthEl = el('health-fill');
-  const moneyEl = el('money');
-  const rankEl = el('rank-rp');
-  const districtEl = el('district');
-  const policeEl = el('police-panel');
-  const mTitle = el('mission-title');
-  const mText = el('mission-text');
-  const mStage = el('mission-stage');
-  const mNext = el('mission-next');
-  const dlgName = el('dialogue-name');
-  const dlgText = el('dialogue-text');
-  const speedEl = el('speed-box');
-  const compassEl = el('compass');
-  const radioEl = el('radio-line');
-  const damageRow = el('damage-row');
-  const damageEl = el('damage-fill');
-  const damagePct = el('damage-pct');
-  const bannerEl = el('banner');
-  const soundEl = el('sound-pill');
-  const mapCanvas = el('minimap');
-  const mapCtx = mapCanvas ? mapCanvas.getContext('2d') : null;
+export function drawPortrait(canvas, speaker) {
+  if (!canvas) return;
+  const g = canvas.getContext('2d');
+  const w = canvas.width;
+  const h = canvas.height;
+  g.clearRect(0, 0, w, h);
+  g.fillStyle = '#2a2233';
+  g.fillRect(0, 0, w, h);
+  // Face.
+  g.fillStyle = '#e8b98a';
+  g.beginPath();
+  g.arc(w / 2, h * 0.52, w * 0.3, 0, Math.PI * 2);
+  g.fill();
+  // Hat.
+  g.fillStyle = '#1c1c2e';
+  g.fillRect(w * 0.18, h * 0.16, w * 0.64, h * 0.16);
+  g.fillRect(w * 0.1, h * 0.3, w * 0.8, h * 0.07);
+  g.fillStyle = '#ffd23e';
+  g.fillRect(w * 0.18, h * 0.28, w * 0.64, h * 0.045);
+  // Eyes.
+  g.fillStyle = '#1c1c2e';
+  g.beginPath();
+  g.arc(w * 0.4, h * 0.52, w * 0.045, 0, Math.PI * 2);
+  g.arc(w * 0.6, h * 0.52, w * 0.045, 0, Math.PI * 2);
+  g.fill();
+  // Moustache and ledger book.
+  g.fillStyle = '#3a2a1a';
+  g.fillRect(w * 0.36, h * 0.66, w * 0.28, h * 0.06);
+  g.fillStyle = '#e8dcc0';
+  g.fillRect(w * 0.14, h * 0.82, w * 0.72, h * 0.14);
+  g.strokeStyle = '#7a6a4a';
+  g.lineWidth = 1;
+  g.strokeRect(w * 0.14, h * 0.82, w * 0.72, h * 0.14);
+  void speaker;
+}
 
-  const cache = {};
+export function formatClock(minutes) {
+  const h = Math.floor(minutes / 60) % 24;
+  const m = Math.floor(minutes % 60);
+  return String(h).padStart(2, '0') + ':' + String(m).padStart(2, '0');
+}
 
-  function setText(node, key, value) {
-    if (!node || cache[key] === value) return;
-    cache[key] = value;
-    node.textContent = value;
+function setBar(fillEl, pct) {
+  if (fillEl) fillEl.style.width = Math.max(0, Math.min(100, pct)) + '%';
+}
+
+function compassArrow(angleRad) {
+  const arrows = ['↑', '↗', '→', '↘', '↓', '↙', '←', '↖'];
+  const idx = Math.round(((angleRad % (Math.PI * 2)) + Math.PI * 2) / (Math.PI / 4)) % 8;
+  return arrows[idx];
+}
+
+export function updateHud(s) {
+  const stars = el('stars');
+  if (stars) {
+    let text = '';
+    for (let i = 0; i < 4; i += 1) text += i < s.wanted ? '★' : '☆';
+    stars.textContent = text;
   }
-  function setHtml(node, key, value) {
-    if (!node || cache[key] === value) return;
-    cache[key] = value;
-    node.innerHTML = value;
+  setBar(el('health-fill'), s.health);
+  const hn = el('health-num');
+  if (hn) hn.textContent = 'HEALTH ' + Math.round(s.health);
+  setBar(el('armour-fill'), s.armour);
+  const an = el('armour-num');
+  if (an) an.textContent = 'ARMOUR ' + Math.round(s.armour);
+  const money = el('money');
+  if (money) money.textContent = '$' + s.money.toLocaleString('en-US');
+  const rankName = el('rank-name');
+  if (rankName) rankName.textContent = 'RANK ' + s.rankInfo.rank + ' · ' + s.rankInfo.name;
+  setBar(el('rp-fill'), s.rankInfo.pct);
+  const rpNum = el('rp-num');
+  if (rpNum) rpNum.textContent = s.rankInfo.cur + ' / ' + s.rankInfo.next + ' RP';
+  const district = el('district');
+  if (district) district.textContent = s.district.toUpperCase() + ' · STANDING ' + s.standing;
+  const clock = el('clock');
+  if (clock) clock.textContent = formatClock(s.clockMinutes);
+  const mt = el('mission-title');
+  if (mt) mt.textContent = s.job.title.toUpperCase();
+  const md = el('mission-desc');
+  if (md) md.textContent = s.job.desc;
+  const mj = el('mission-job');
+  if (mj) mj.textContent = 'JOB ' + s.job.id + '/4 · ' + s.job.next.toUpperCase();
+  const timer = el('mission-timer');
+  if (timer) timer.textContent = formatTimer(s.timerSeconds);
+  setBar(el('stage-fill'), (s.stageIndex / Math.max(1, s.stageTotal)) * 100);
+  const stageNum = el('stage-num');
+  if (stageNum) stageNum.textContent = 'STAGE ' + s.stageIndex + '/' + s.stageTotal;
+  const speed = el('speed');
+  if (speed) speed.textContent = s.inCar ? Math.round(s.speedMph) + ' mph' : 'ON FOOT';
+  const compass = el('compass');
+  if (compass) compass.textContent = compassArrow(s.compassAngle) + ' ' + Math.round(s.compassDist) + 'm';
+  const radio = el('radio');
+  if (radio) radio.textContent = s.radio.name + ' — ' + s.radio.track + ' · ' + s.radio.artist;
+  setBar(el('damage-fill'), s.damage);
+  const dn = el('damage-num');
+  if (dn) dn.textContent = 'DAMAGE ' + Math.round(s.damage) + '%';
+  const carLine = el('car-line');
+  if (carLine) {
+    carLine.textContent = s.inCar
+      ? s.carName + ' / CONDITION ' + Math.round(s.carCondition) + '% · ' + s.gear
+      : '';
   }
+  const panel = el('police-panel');
+  if (panel) {
+    panel.textContent = '';
+    for (const u of s.police) {
+      const row = document.createElement('div');
+      row.className = 'police-row';
+      row.textContent = u.name + ' · ' + u.role + ' · ' + u.dist + 'm';
+      panel.appendChild(row);
+    }
+    if (s.police.length === 0) {
+      const row = document.createElement('div');
+      row.className = 'police-row';
+      row.textContent = 'NO UNITS ON YOU';
+      panel.appendChild(row);
+    }
+  }
+  const soundPill = el('sound-pill');
+  if (soundPill) soundPill.textContent = s.muted ? 'SOUND OFF · X' : 'SOUND ON · X';
+  const dlg = el('dialogue');
+  if (dlg) {
+    if (s.dialogue) {
+      dlg.style.display = 'flex';
+      const sp = el('speaker');
+      if (sp) sp.textContent = s.dialogue.speaker;
+      const dt = el('dialogue-text');
+      if (dt) dt.textContent = s.dialogue.text;
+      drawPortrait(el('portrait'), s.dialogue.speaker);
+    } else {
+      dlg.style.display = 'none';
+    }
+  }
+}
 
-  function compassArrow(relAngle) {
-    let a = relAngle;
-    while (a > Math.PI) a -= Math.PI * 2;
-    while (a < -Math.PI) a += Math.PI * 2;
-    const idx = Math.round(a / (Math.PI / 4));
-    return ARROWS[((idx % 8) + 8) % 8];
+export function drawMinimap(canvas, s) {
+  if (!canvas) return;
+  const g = canvas.getContext('2d');
+  const w = canvas.width;
+  const h = canvas.height;
+  const sx = (x) => ((x + 100) / 214) * w;
+  const sz = (z) => ((z + 100) / 200) * h;
+  g.fillStyle = '#14121c';
+  g.fillRect(0, 0, w, h);
+  // Ocean on the right.
+  g.fillStyle = '#1f6a80';
+  g.fillRect(sx(68), 0, w - sx(68), h);
+  // Beach.
+  g.fillStyle = '#e0c48f';
+  g.fillRect(sx(60), 0, sx(68) - sx(60), h);
+  // Roads.
+  g.strokeStyle = '#8a7a5a';
+  g.lineWidth = 3;
+  for (const x of [-60, -30, 0, 30, 60]) {
+    g.beginPath();
+    g.moveTo(sx(x), 0);
+    g.lineTo(sx(x), h);
+    g.stroke();
   }
-
-  function drawMinimap(s) {
-    if (!mapCtx) return;
-    const W = mapCanvas.width;
-    const H = mapCanvas.height;
-    const toMap = (x, z) => [((x + 200) / 400) * W, ((z + 200) / 400) * H];
-    mapCtx.fillStyle = '#0d0d1a';
-    mapCtx.fillRect(0, 0, W, H);
-    mapCtx.strokeStyle = '#3a3a55';
-    mapCtx.lineWidth = 1;
-    for (let i = 0; i < 7; i++) {
-      for (let j = 0; j < 7; j++) {
-        mapCtx.strokeRect(
-          ((STREET_LINES[i] + 8 + 200) / 400) * W,
-          ((STREET_LINES[j] + 8 + 200) / 400) * H,
-          ((44 / 400) * W), ((44 / 400) * H),
-        );
-      }
-    }
-    mapCtx.strokeStyle = '#8a8aa8';
-    mapCtx.lineWidth = 2;
-    for (const line of STREET_LINES) {
-      const [x1, y1] = toMap(line, -200);
-      const [x2, y2] = toMap(line, 200);
-      mapCtx.beginPath(); mapCtx.moveTo(x1, y1); mapCtx.lineTo(x2, y2); mapCtx.stroke();
-      const [a1, b1] = toMap(-200, line);
-      const [a2, b2] = toMap(200, line);
-      mapCtx.beginPath(); mapCtx.moveTo(a1, b1); mapCtx.lineTo(a2, b2); mapCtx.stroke();
-    }
-    if (s.marker) {
-      const [mx, my] = toMap(s.marker.x, s.marker.z);
-      mapCtx.fillStyle = '#ffd21f';
-      mapCtx.beginPath(); mapCtx.arc(mx, my, 5, 0, Math.PI * 2); mapCtx.fill();
-    }
-    if (s.traffic) {
-      mapCtx.fillStyle = '#cfcfdd';
-      for (const t of s.traffic) {
-        const [tx, ty] = toMap(t.x, t.z);
-        mapCtx.fillRect(tx - 1, ty - 1, 2, 2);
-      }
-    }
-    if (s.police) {
-      mapCtx.fillStyle = '#3a7bff';
-      for (const p of s.police) {
-        const [px, py] = toMap(p.x, p.z);
-        mapCtx.beginPath(); mapCtx.arc(px, py, 3, 0, Math.PI * 2); mapCtx.fill();
-      }
-    }
-    if (s.player) {
-      const [px, py] = toMap(s.player.x, s.player.z);
-      mapCtx.save();
-      mapCtx.translate(px, py);
-      mapCtx.rotate(Math.atan2(Math.sin(s.player.yaw), Math.cos(s.player.yaw)) * -1 + Math.PI);
-      mapCtx.fillStyle = '#ffffff';
-      mapCtx.beginPath();
-      mapCtx.moveTo(0, -6); mapCtx.lineTo(4, 5); mapCtx.lineTo(-4, 5); mapCtx.closePath();
-      mapCtx.fill();
-      mapCtx.restore();
-    }
+  for (const z of [-60, -30, 0, 30, 60]) {
+    g.beginPath();
+    g.moveTo(0, sz(z));
+    g.lineTo(w, sz(z));
+    g.stroke();
   }
-
-  // s: {wanted, health, money, rank, rp, district, standing, policeUnits,
-  // mission, stage, next, speaker, story, speedLabel, compassArrow,
-  // compassDist, radio, damage, banner, soundOn, marker, player, traffic,
-  // police}
-  function update(s) {
-    let stars = '';
-    for (let i = 0; i < 4; i++) stars += i < s.wanted ? '★' : '☆';
-    setText(starsEl, 'stars', stars);
-    if (healthEl) {
-      const pct = Math.max(0, Math.min(100, Math.round(s.health)));
-      if (cache.health !== pct) {
-        cache.health = pct;
-        healthEl.style.width = `${pct}%`;
-        healthEl.style.background = pct > 50 ? '#2fae5f' : pct > 25 ? '#ff9a3d' : '#e84a3a';
-      }
-    }
-    setText(moneyEl, 'money', `$${s.money}`);
-    setText(rankEl, 'rank', `RANK ${s.rank} · ${s.rp} RP`);
-    setText(districtEl, 'district', `${s.district} · STANDING ${s.standing}`);
-    if (policeEl) {
-      const show = s.wanted > 0 && s.policeUnits && s.policeUnits.length > 0;
-      if (cache.policeShow !== show) {
-        cache.policeShow = show;
-        policeEl.style.display = show ? 'block' : 'none';
-      }
-      if (show) {
-        const html = s.policeUnits
-          .map((u) => `${u.callsign} · ${u.role} · ${u.dist}m`).join('<br>');
-        setHtml(policeEl, 'police', html);
-      }
-    }
-    setText(mTitle, 'mtitle', s.mission.title);
-    setText(mText, 'mtext', s.mission.text);
-    setText(mStage, 'mstage', `JOB ${s.stage}`);
-    setText(mNext, 'mnext', `NEXT: ${s.next}`);
-    setText(dlgName, 'dname', s.speaker);
-    setText(dlgText, 'dtext', s.story);
-    setText(speedEl, 'speed', s.speedLabel);
-    setText(compassEl, 'compass', `${s.compassArrow} ${s.compassDist}m`);
-    if (radioEl) {
-      const show = !!s.radio;
-      if (cache.radioShow !== show) {
-        cache.radioShow = show;
-        radioEl.style.display = show ? 'block' : 'none';
-      }
-      if (show) setText(radioEl, 'radio', `♪ ${s.radio.name} — ${s.radio.track}`);
-    }
-    if (damageRow) {
-      const show = s.damage !== null && s.damage !== undefined;
-      if (cache.dmgShow !== show) {
-        cache.dmgShow = show;
-        damageRow.style.display = show ? 'block' : 'none';
-      }
-      if (show) {
-        const pct = Math.round(s.damage);
-        if (cache.dmg !== pct) {
-          cache.dmg = pct;
-          damageEl.style.width = `${pct}%`;
-          damagePct.textContent = `DAMAGE ${pct}%`;
-        }
-      }
-    }
-    if (bannerEl) {
-      const show = !!s.banner;
-      if (cache.bannerShow !== show) {
-        cache.bannerShow = show;
-        bannerEl.style.display = show ? 'block' : 'none';
-      }
-      if (show) setText(bannerEl, 'banner', s.banner);
-    }
-    setText(soundEl, 'sound', s.soundOn ? 'SOUND ON' : 'SOUND OFF');
-    drawMinimap(s);
+  // Marker.
+  g.fillStyle = '#ffd23e';
+  g.beginPath();
+  g.arc(sx(s.marker.x), sz(s.marker.z), 4, 0, Math.PI * 2);
+  g.fill();
+  g.strokeStyle = '#ffd23e';
+  g.beginPath();
+  g.arc(sx(s.marker.x), sz(s.marker.z), 7, 0, Math.PI * 2);
+  g.stroke();
+  // Traffic.
+  g.fillStyle = '#d9d9d9';
+  for (const t of s.traffic) {
+    g.fillRect(sx(t.x) - 1.5, sz(t.z) - 1.5, 3, 3);
   }
-
-  function show(id) {
-    const n = el(id);
-    if (n) n.style.display = 'block';
+  // Police.
+  g.fillStyle = '#2e6fff';
+  for (const p of s.policePos) {
+    g.beginPath();
+    g.arc(sx(p.x), sz(p.z), 2.5, 0, Math.PI * 2);
+    g.fill();
   }
-  function hide(id) {
-    const n = el(id);
-    if (n) n.style.display = 'none';
-  }
-
-  return { update, show, hide, compassArrow };
+  // Player arrow.
+  g.save();
+  g.translate(sx(s.player.x), sz(s.player.z));
+  g.rotate(s.player.heading);
+  g.fillStyle = '#ffffff';
+  g.beginPath();
+  g.moveTo(0, -6);
+  g.lineTo(4, 5);
+  g.lineTo(-4, 5);
+  g.closePath();
+  g.fill();
+  g.restore();
 }

@@ -1,5 +1,3 @@
-# Neon Bay v11 — local build output and editor files stay out of the repo.
-out/
 node_modules/
 .DS_Store
 *.log

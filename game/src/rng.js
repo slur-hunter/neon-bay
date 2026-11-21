@@ -1,8 +1,8 @@
-// Seeded random helpers. The city must look identical on every load,
-// so every random choice in the world build draws from one seeded stream.
+// Seeded random numbers for Neon Bay. One tiny generator so the staged
+// shots and the ambient city are deterministic for a given seed.
 export function mulberry32(seed) {
   let a = seed >>> 0;
-  return function () {
+  return function next() {
     a |= 0;
     a = (a + 0x6d2b79f5) | 0;
     let t = Math.imul(a ^ (a >>> 15), 1 | a);
@@ -11,34 +11,30 @@ export function mulberry32(seed) {
   };
 }
 
-export function range(rng, lo, hi) {
-  return lo + rng() * (hi - lo);
+export function makeRng(seed) {
+  const next = mulberry32(seed);
+  return {
+    next,
+    range(min, max) {
+      return min + next() * (max - min);
+    },
+    int(min, max) {
+      return Math.floor(min + next() * (max - min + 1));
+    },
+    pick(list) {
+      return list[Math.floor(next() * list.length)];
+    },
+    chance(p) {
+      return next() < p;
+    },
+  };
 }
 
-export function pick(rng, list) {
-  return list[Math.floor(rng() * list.length)];
-}
-
-export function chance(rng, p) {
-  return rng() < p;
-}
-
-export function clamp(v, lo, hi) {
-  return v < lo ? lo : v > hi ? hi : v;
-}
-
-export function lerp(a, b, t) {
-  return a + (b - a) * t;
-}
-
-export function dist2(ax, az, bx, bz) {
-  const dx = ax - bx;
-  const dz = az - bz;
-  return Math.sqrt(dx * dx + dz * dz);
-}
-
-// Angle from (ax,az) toward (bx,bz), in the same yaw convention the game
-// uses: yaw 0 faces +Z, positive yaw turns toward +X.
-export function yawTo(ax, az, bx, bz) {
-  return Math.atan2(bx - ax, bz - az);
+export function hashSeed(text) {
+  let h = 2166136261;
+  for (let i = 0; i < text.length; i += 1) {
+    h ^= text.charCodeAt(i);
+    h = Math.imul(h, 16777619);
+  }
+  return h >>> 0;
 }

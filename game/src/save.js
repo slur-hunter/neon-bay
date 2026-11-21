@@ -1,36 +1,75 @@
-// localStorage save: money, mission index, RP and a timestamp. Loads are
-// validated so a corrupt or foreign value can never break the game.
-const KEY = 'neonbay-save-v1';
+// Save and load for Neon Bay: localStorage with strict validation. Every
+// field is checked before it is trusted, and a bad save falls back to a
+// fresh game. Per-district standing IS persisted (earlier versions lost
+// it on load).
+const KEY = 'neon-bay-save-v12';
+
+export function defaultSave() {
+  return {
+    money: 0,
+    missionIndex: 0,
+    rp: 0,
+    armour: 0,
+    health: 100,
+    doneByDistrict: { Downtown: 0, Uptown: 0, Marina: 0, Harbour: 0, 'The Strand': 0 },
+    clockMinutes: 17 * 60 + 41,
+    version: 12,
+  };
+}
+
+function isInt(v) {
+  return typeof v === 'number' && Number.isFinite(v) && Math.floor(v) === v;
+}
+
+export function validateSave(raw) {
+  if (!raw || typeof raw !== 'object') return null;
+  if (raw.version !== 12) return null;
+  if (!isInt(raw.money) || raw.money < 0 || raw.money > 1000000) return null;
+  if (!isInt(raw.missionIndex) || raw.missionIndex < 0 || raw.missionIndex > 3) return null;
+  if (!isInt(raw.rp) || raw.rp < 0 || raw.rp > 2000) return null;
+  if (!isInt(raw.armour) || raw.armour < 0 || raw.armour > 100) return null;
+  if (!isInt(raw.health) || raw.health < 0 || raw.health > 100) return null;
+  if (!raw.doneByDistrict || typeof raw.doneByDistrict !== 'object') return null;
+  for (const d of ['Downtown', 'Uptown', 'Marina', 'Harbour', 'The Strand']) {
+    if (!isInt(raw.doneByDistrict[d]) || raw.doneByDistrict[d] < 0 || raw.doneByDistrict[d] > 20) return null;
+  }
+  if (!isInt(raw.clockMinutes) || raw.clockMinutes < 0 || raw.clockMinutes >= 1440) return null;
+  return raw;
+}
 
 export function loadSave() {
   try {
-    const raw = localStorage.getItem(KEY);
-    if (!raw) return null;
-    const s = JSON.parse(raw);
-    if (typeof s !== 'object' || s === null) return null;
-    return {
-      money: Number.isFinite(s.money) ? Math.max(0, Math.floor(s.money)) : 0,
-      missionIndex: Number.isFinite(s.missionIndex)
-        ? Math.max(0, Math.min(4, Math.floor(s.missionIndex))) : 0,
-      rp: Number.isFinite(s.rp) ? Math.max(0, Math.floor(s.rp)) : 0,
-      timestamp: Number.isFinite(s.timestamp) ? s.timestamp : 0,
-    };
+    const text = window.localStorage.getItem(KEY);
+    if (!text) return null;
+    return validateSave(JSON.parse(text));
   } catch {
     return null;
   }
 }
 
-export function storeSave(state) {
+export function writeSave(state) {
   try {
-    localStorage.setItem(KEY, JSON.stringify({
+    const data = {
       money: state.money,
       missionIndex: state.missionIndex,
       rp: state.rp,
-      timestamp: Date.now(),
-    }));
-  } catch { /* storage may be unavailable; the game still plays */ }
+      armour: Math.round(state.armour),
+      health: Math.round(state.health),
+      doneByDistrict: state.doneByDistrict,
+      clockMinutes: Math.floor(state.clockMinutes),
+      version: 12,
+    };
+    window.localStorage.setItem(KEY, JSON.stringify(data));
+    return true;
+  } catch {
+    return false;
+  }
 }
 
 export function clearSave() {
-  try { localStorage.removeItem(KEY); } catch { /* ignore */ }
+  try {
+    window.localStorage.removeItem(KEY);
+  } catch {
+    // Storage may be unavailable; a fresh game is the safe fallback.
+  }
 }
