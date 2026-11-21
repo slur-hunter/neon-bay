@@ -6,42 +6,42 @@
 
 An original open-world crime game built for make.fun's **Make GTA 6** bounty
 (gta6-01). Rico owes $1,200 to Vinnie "The Ledger" Marlow and works it off
-over four jobs across a golden-hour coastal city: steal cars, outrun the
-cruisers, make the drops, and settle the ledger on the Strand.
+over four jobs across a golden-hour waterfront city: steal cars, outrun the
+cruisers, make the drops.
 
-## The game
+## The city
 
-- A coastal open world: a grid city with a beach boulevard, an ocean horizon,
-  a skyline, six facade colours, readable shop and casino signs, palms and
-  streetlights, all in golden hour.
-- Four story jobs (The Pickup, The Drop, The Getaway, The Ledger) with a
-  mission card, a live timer, a stage progress bar, a marker beam and ring,
-  and a mission-complete banner with pay.
-- Wanted stars 0-4 with named cruisers (REEF-12, TIDE-7, SURF-3, BAY-9) and
-  live roles: RAMMING under 7 m, PURSUIT under 30 m, RESPONDING otherwise.
-  Cruisers ram, flash red and blue light bars, and the heat decays when you
-  break away.
-- Progression you can see: health and armour bars, money, a rank name with a
-  respect progress bar (DRIVER, FIXER, SHOT CALLER, KINGPIN, LEGEND),
-  per-district standing, a time-of-day clock, a car model name with a
-  condition percentage and a gear indicator, a live minimap, two synthesized
-  radio stations, and a dialogue portrait for Vinnie.
-- Punching a pedestrian knocks them down and does NOT raise wanted. Punching
-  a police car does. Stealing a car raises the heat to one star. Saves
-  persist in localStorage, including per-district standing.
+The Strand is a waterfront avenue with the ocean on its east side, so the
+horizon stays open: beach, palms, the Casino Azul sign, the Tacos El Faro
+sign, and a skyline to the north. Six facade colours, lit windows, street
+lamps, traffic and pedestrians on every street.
+
+## What is in the game
+
+- On foot and by car: walk the Strand, steal a parked car with E, drive it,
+  brake with Space, punch with a click (punching a pedestrian never raises
+  wanted; punching a police car does).
+- Wanted 0 to 4 stars with named cruisers (REEF-12, TIDE-7, SURF-3, BAY-9)
+  that chase, ram and respond by live distance, with flashing light bars and a
+  live police panel.
+- Four story jobs with a mission card, a marker beam and ring, a timer and a
+  stage bar, and a mission-complete banner with pay. Rico's own car is the
+  NEON STING GT.
+- Progression: money, respect points and a rank with a name (ROOKIE, HUSTLER,
+  SHOT CALLER, KINGPIN, LEGEND), district standing, health and an armour bar
+  that absorbs damage before health, a time-of-day clock, a car name with
+  condition and gear, and a minimap with roads, the marker, the player arrow,
+  traffic and police.
+- Two radio stations (SUNSET FM and NIGHT DRIVE), a siren while wanted, an
+  engine hum while driving, and a sound toggle. Save and load after every job.
 
 ## Controls
 
 WASD move / drive · Mouse drag look · E enter / exit car · Click punch ·
-Space brake · M radio station · X sound · P pause
+Space brake · M radio · X sound · P pause
 
 ## Play it
 
-Serve it locally with `node serve.ts`, then open http://localhost:8080.
-The four screenshots are staged with `?shot=1`, `?shot=2`, `?shot=3` and
-`?shot=4` (with `&seed=1` for a deterministic city).
-
-## Build
-
-Node 22, standard library only. `node main.ts` copies `game/` and
-`screenshots/` to the output directory and writes `dossier.json`.
+Serve `game/` with any static server (`node serve.ts` serves it on
+http://localhost:8080) and open `game/index.html` in desktop Chrome. No
+network request is made: every file the game loads sits under `game/`.

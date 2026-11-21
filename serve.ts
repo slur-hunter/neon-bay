@@ -1,8 +1,7 @@
-// A tiny static server for game/ (Node 22, standard library only), so the
-// entry can be played locally without a build step: `node serve.ts` serves
-// game/ on http://localhost:8080 (or the port after --port). It sends the
-// MIME types a browser game needs, refuses any path outside game/, and
-// otherwise does nothing clever.
+// A tiny static server for game/ (Node 22, standard library only), so the entry
+// can be played locally without a build step: `node serve.ts` serves game/ on
+// http://localhost:8080. It sends the MIME types a browser game needs, refuses any
+// path outside game/, and otherwise does nothing clever.
 import { createReadStream, statSync } from 'node:fs';
 import { createServer } from 'node:http';
 import { extname, join, normalize, resolve, sep } from 'node:path';
@@ -11,8 +10,8 @@ import { fileURLToPath } from 'node:url';
 const root = resolve(fileURLToPath(new URL('./game', import.meta.url)));
 const args = process.argv.slice(2);
 const portIndex = args.indexOf('--port');
-const wanted = portIndex === -1 ? 8080 : Number(args[portIndex + 1]);
-const port = Number.isInteger(wanted) && wanted > 0 && wanted < 65536 ? wanted : 8080;
+const requested = portIndex === -1 ? 8080 : Number(args[portIndex + 1]);
+const port = Number.isInteger(requested) && requested > 0 && requested < 65536 ? requested : 8080;
 
 const MIME = {
   '.html': 'text/html; charset=utf-8',
@@ -69,5 +68,5 @@ createServer((request, response) => {
   });
   createReadStream(file).pipe(response);
 }).listen(port, '127.0.0.1', () => {
-  console.log('game/ is on http://localhost:' + port);
+  console.log(`game/ is on http://localhost:${port}`);
 });
