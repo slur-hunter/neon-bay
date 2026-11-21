@@ -1,38 +1,36 @@
-// localStorage save: money, mission index, RP, timestamp. All guarded.
-const KEY = 'neon-bay-save-v1';
+// localStorage save: money, mission index, RP and a timestamp. Loads are
+// validated so a corrupt or foreign value can never break the game.
+const KEY = 'neonbay-save-v1';
 
 export function loadSave() {
   try {
-    const raw = window.localStorage.getItem(KEY);
+    const raw = localStorage.getItem(KEY);
     if (!raw) return null;
-    const data = JSON.parse(raw);
-    if (typeof data.money !== 'number' || typeof data.index !== 'number') return null;
+    const s = JSON.parse(raw);
+    if (typeof s !== 'object' || s === null) return null;
     return {
-      money: Math.max(0, Math.floor(data.money)),
-      index: Math.max(0, Math.min(4, Math.floor(data.index))),
-      rp: typeof data.rp === 'number' ? Math.max(0, Math.floor(data.rp)) : 0,
-      ts: typeof data.ts === 'number' ? data.ts : 0,
+      money: Number.isFinite(s.money) ? Math.max(0, Math.floor(s.money)) : 0,
+      missionIndex: Number.isFinite(s.missionIndex)
+        ? Math.max(0, Math.min(4, Math.floor(s.missionIndex))) : 0,
+      rp: Number.isFinite(s.rp) ? Math.max(0, Math.floor(s.rp)) : 0,
+      timestamp: Number.isFinite(s.timestamp) ? s.timestamp : 0,
     };
-  } catch (err) {
+  } catch {
     return null;
   }
 }
 
-export function writeSave(state) {
+export function storeSave(state) {
   try {
-    window.localStorage.setItem(
-      KEY,
-      JSON.stringify({ money: state.money, index: state.index, rp: state.rp, ts: Date.now() }),
-    );
-  } catch (err) {
-    // storage full or blocked: the game keeps playing without a save.
-  }
+    localStorage.setItem(KEY, JSON.stringify({
+      money: state.money,
+      missionIndex: state.missionIndex,
+      rp: state.rp,
+      timestamp: Date.now(),
+    }));
+  } catch { /* storage may be unavailable; the game still plays */ }
 }
 
 export function clearSave() {
-  try {
-    window.localStorage.removeItem(KEY);
-  } catch (err) {
-    // ignore
-  }
+  try { localStorage.removeItem(KEY); } catch { /* ignore */ }
 }

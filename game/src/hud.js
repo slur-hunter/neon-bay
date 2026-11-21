@@ -1,184 +1,198 @@
-// The HUD: every panel is fed by live game data, and the DOM is only touched
-// when a value actually changes. The compass (arrow + live distance to the
-// marker) is always visible, in every shot.
-import { SPEAKERS } from './jobs.js';
+// HUD: every panel the screenshots show, updated only when its content
+// changes. All numbers come from live game state passed in each frame;
+// nothing here is a constant pretending to be data.
+import { STREET_LINES } from './city.js';
 
 const ARROWS = ['↑', '↗', '→', '↘', '↓', '↙', '←', '↖'];
 
-function arrowFor(relAngle) {
-  const idx = Math.round(relAngle / (Math.PI / 4)) % 8;
-  return ARROWS[(idx + 8) % 8];
-}
+export function makeHud(doc) {
+  const el = (id) => doc.getElementById(id);
+  const starsEl = el('stars');
+  const healthEl = el('health-fill');
+  const moneyEl = el('money');
+  const rankEl = el('rank-rp');
+  const districtEl = el('district');
+  const policeEl = el('police-panel');
+  const mTitle = el('mission-title');
+  const mText = el('mission-text');
+  const mStage = el('mission-stage');
+  const mNext = el('mission-next');
+  const dlgName = el('dialogue-name');
+  const dlgText = el('dialogue-text');
+  const speedEl = el('speed-box');
+  const compassEl = el('compass');
+  const radioEl = el('radio-line');
+  const damageRow = el('damage-row');
+  const damageEl = el('damage-fill');
+  const damagePct = el('damage-pct');
+  const bannerEl = el('banner');
+  const soundEl = el('sound-pill');
+  const mapCanvas = el('minimap');
+  const mapCtx = mapCanvas ? mapCanvas.getContext('2d') : null;
 
-export class Hud {
-  constructor(doc) {
-    this.el = {};
-    const ids = [
-      'stars', 'healthfill', 'money', 'rank', 'standing', 'police', 'mission-title',
-      'mission-text', 'mission-stage', 'mission-next', 'speedbox', 'compass',
-      'radio', 'damage', 'damagefill', 'dialogue', 'banner', 'minimap', 'sound',
-      'start-overlay', 'pause-overlay', 'over-overlay', 'continue-row',
-      'start-money', 'start-mission',
-    ];
-    for (const id of ids) this.el[id] = doc.getElementById(id);
-    this.last = {};
-    this.mapTimer = 0;
+  const cache = {};
+
+  function setText(node, key, value) {
+    if (!node || cache[key] === value) return;
+    cache[key] = value;
+    node.textContent = value;
+  }
+  function setHtml(node, key, value) {
+    if (!node || cache[key] === value) return;
+    cache[key] = value;
+    node.innerHTML = value;
   }
 
-  set(id, value) {
-    if (this.last[id] === value) return;
-    this.last[id] = value;
-    const node = this.el[id];
-    if (node) node.textContent = value;
+  function compassArrow(relAngle) {
+    let a = relAngle;
+    while (a > Math.PI) a -= Math.PI * 2;
+    while (a < -Math.PI) a += Math.PI * 2;
+    const idx = Math.round(a / (Math.PI / 4));
+    return ARROWS[((idx % 8) + 8) % 8];
   }
 
-  show(id, visible) {
-    const key = id + ':vis';
-    if (this.last[key] === visible) return;
-    this.last[key] = visible;
-    const node = this.el[id];
-    // use an explicit display value: the stylesheet hides these panels by
-    // default, so an empty inline value would fall back to hidden
-    if (node) node.style.display = visible ? 'block' : 'none';
+  function drawMinimap(s) {
+    if (!mapCtx) return;
+    const W = mapCanvas.width;
+    const H = mapCanvas.height;
+    const toMap = (x, z) => [((x + 200) / 400) * W, ((z + 200) / 400) * H];
+    mapCtx.fillStyle = '#0d0d1a';
+    mapCtx.fillRect(0, 0, W, H);
+    mapCtx.strokeStyle = '#3a3a55';
+    mapCtx.lineWidth = 1;
+    for (let i = 0; i < 7; i++) {
+      for (let j = 0; j < 7; j++) {
+        mapCtx.strokeRect(
+          ((STREET_LINES[i] + 8 + 200) / 400) * W,
+          ((STREET_LINES[j] + 8 + 200) / 400) * H,
+          ((44 / 400) * W), ((44 / 400) * H),
+        );
+      }
+    }
+    mapCtx.strokeStyle = '#8a8aa8';
+    mapCtx.lineWidth = 2;
+    for (const line of STREET_LINES) {
+      const [x1, y1] = toMap(line, -200);
+      const [x2, y2] = toMap(line, 200);
+      mapCtx.beginPath(); mapCtx.moveTo(x1, y1); mapCtx.lineTo(x2, y2); mapCtx.stroke();
+      const [a1, b1] = toMap(-200, line);
+      const [a2, b2] = toMap(200, line);
+      mapCtx.beginPath(); mapCtx.moveTo(a1, b1); mapCtx.lineTo(a2, b2); mapCtx.stroke();
+    }
+    if (s.marker) {
+      const [mx, my] = toMap(s.marker.x, s.marker.z);
+      mapCtx.fillStyle = '#ffd21f';
+      mapCtx.beginPath(); mapCtx.arc(mx, my, 5, 0, Math.PI * 2); mapCtx.fill();
+    }
+    if (s.traffic) {
+      mapCtx.fillStyle = '#cfcfdd';
+      for (const t of s.traffic) {
+        const [tx, ty] = toMap(t.x, t.z);
+        mapCtx.fillRect(tx - 1, ty - 1, 2, 2);
+      }
+    }
+    if (s.police) {
+      mapCtx.fillStyle = '#3a7bff';
+      for (const p of s.police) {
+        const [px, py] = toMap(p.x, p.z);
+        mapCtx.beginPath(); mapCtx.arc(px, py, 3, 0, Math.PI * 2); mapCtx.fill();
+      }
+    }
+    if (s.player) {
+      const [px, py] = toMap(s.player.x, s.player.z);
+      mapCtx.save();
+      mapCtx.translate(px, py);
+      mapCtx.rotate(Math.atan2(Math.sin(s.player.yaw), Math.cos(s.player.yaw)) * -1 + Math.PI);
+      mapCtx.fillStyle = '#ffffff';
+      mapCtx.beginPath();
+      mapCtx.moveTo(0, -6); mapCtx.lineTo(4, 5); mapCtx.lineTo(-4, 5); mapCtx.closePath();
+      mapCtx.fill();
+      mapCtx.restore();
+    }
   }
 
-  update(G, dt) {
-    const jobs = G.jobs;
-    const job = jobs.current;
-    // wanted stars
+  // s: {wanted, health, money, rank, rp, district, standing, policeUnits,
+  // mission, stage, next, speaker, story, speedLabel, compassArrow,
+  // compassDist, radio, damage, banner, soundOn, marker, player, traffic,
+  // police}
+  function update(s) {
     let stars = '';
-    for (let i = 0; i < 4; i++) stars += i < G.police.wanted ? '★' : '☆';
-    this.set('stars', stars);
-    this.set('money', '$' + jobs.money);
-    this.set('rank', 'RANK ' + jobs.rank + ' · ' + jobs.rp + ' RP');
-    this.set('standing', jobs.district + ' · STANDING ' + jobs.standing);
-    // health bar
-    const hp = Math.max(0, Math.round(G.health));
-    if (this.last.health !== hp) {
-      this.last.health = hp;
-      const fill = this.el.healthfill;
-      if (fill) {
-        fill.style.width = hp + '%';
-        fill.style.background = hp > 50 ? '#37d67a' : hp > 25 ? '#f2c230' : '#e23b2e';
+    for (let i = 0; i < 4; i++) stars += i < s.wanted ? '★' : '☆';
+    setText(starsEl, 'stars', stars);
+    if (healthEl) {
+      const pct = Math.max(0, Math.min(100, Math.round(s.health)));
+      if (cache.health !== pct) {
+        cache.health = pct;
+        healthEl.style.width = `${pct}%`;
+        healthEl.style.background = pct > 50 ? '#2fae5f' : pct > 25 ? '#ff9a3d' : '#e84a3a';
       }
     }
-    // police panel
-    const panel = G.police.panel();
-    const panelText = panel.map((u) => u.name + ' · ' + u.role + ' · ' + u.dist + 'm').join('\n');
-    this.set('police', panelText);
-    this.show('police', panel.length > 0);
-    // mission block
-    this.set('mission-title', job.title);
-    this.set('mission-text', job.text);
-    this.set('mission-stage', 'JOB ' + Math.min(jobs.index + 1, 4) + '/4');
-    this.set('mission-next', jobs.finished ? 'Debt settled — free roam' : 'NEXT: ' + jobs.nextTitle);
-    // speed / on foot + compass (always visible, live distance)
-    const marker = job.marker;
-    const px = G.inCar ? G.car.pos.x : G.hero.pos.x;
-    const pz = G.inCar ? G.car.pos.z : G.hero.pos.z;
-    const dx = marker[0] - px;
-    const dz = marker[1] - pz;
-    const dist = Math.round(Math.hypot(dx, dz));
-    const bearing = Math.atan2(dx, dz);
-    const rel = bearing - G.camYaw;
-    this.set('compass', arrowFor(rel) + ' ' + dist + 'm');
-    if (G.inCar) {
-      const mph = Math.round(Math.abs(G.car.speed) * 2.237);
-      this.set('speedbox', mph + ' mph');
-    } else {
-      this.set('speedbox', 'ON FOOT');
-    }
-    // radio + damage (car only)
-    if (G.inCar) {
-      const st = G.sound.stationInfo;
-      this.set('radio', '♪ ' + st.name + ' — ' + st.track);
-      this.show('radio', true);
-      const dmg = Math.round(G.car.damage);
-      if (this.last.damage !== dmg) {
-        this.last.damage = dmg;
-        const fill = this.el.damagefill;
-        if (fill) fill.style.width = dmg + '%';
+    setText(moneyEl, 'money', `$${s.money}`);
+    setText(rankEl, 'rank', `RANK ${s.rank} · ${s.rp} RP`);
+    setText(districtEl, 'district', `${s.district} · STANDING ${s.standing}`);
+    if (policeEl) {
+      const show = s.wanted > 0 && s.policeUnits && s.policeUnits.length > 0;
+      if (cache.policeShow !== show) {
+        cache.policeShow = show;
+        policeEl.style.display = show ? 'block' : 'none';
       }
-      this.set('damage', 'DAMAGE ' + dmg + '%');
-      this.show('damage', true);
-    } else {
-      this.show('radio', false);
-      this.show('damage', false);
+      if (show) {
+        const html = s.policeUnits
+          .map((u) => `${u.callsign} · ${u.role} · ${u.dist}m`).join('<br>');
+        setHtml(policeEl, 'police', html);
+      }
     }
-    // dialogue: current job's own story line
-    this.set('dialogue', SPEAKERS[job.speaker] + '\n' + job.story);
-    // banner
-    this.show('banner', G.bannerTimer > 0);
-    if (G.bannerTimer > 0 && this.last.bannerText !== G.bannerText) {
-      this.last.bannerText = G.bannerText;
-      const b = this.el.banner;
-      if (b) b.textContent = G.bannerText;
+    setText(mTitle, 'mtitle', s.mission.title);
+    setText(mText, 'mtext', s.mission.text);
+    setText(mStage, 'mstage', `JOB ${s.stage}`);
+    setText(mNext, 'mnext', `NEXT: ${s.next}`);
+    setText(dlgName, 'dname', s.speaker);
+    setText(dlgText, 'dtext', s.story);
+    setText(speedEl, 'speed', s.speedLabel);
+    setText(compassEl, 'compass', `${s.compassArrow} ${s.compassDist}m`);
+    if (radioEl) {
+      const show = !!s.radio;
+      if (cache.radioShow !== show) {
+        cache.radioShow = show;
+        radioEl.style.display = show ? 'block' : 'none';
+      }
+      if (show) setText(radioEl, 'radio', `♪ ${s.radio.name} — ${s.radio.track}`);
     }
-    // sound state
-    this.set('sound', G.sound.muted ? 'SOUND OFF' : 'SOUND ON');
-    // minimap, throttled
-    this.mapTimer -= dt;
-    if (this.mapTimer <= 0) {
-      this.mapTimer = 0.12;
-      this.drawMinimap(G, px, pz);
+    if (damageRow) {
+      const show = s.damage !== null && s.damage !== undefined;
+      if (cache.dmgShow !== show) {
+        cache.dmgShow = show;
+        damageRow.style.display = show ? 'block' : 'none';
+      }
+      if (show) {
+        const pct = Math.round(s.damage);
+        if (cache.dmg !== pct) {
+          cache.dmg = pct;
+          damageEl.style.width = `${pct}%`;
+          damagePct.textContent = `DAMAGE ${pct}%`;
+        }
+      }
     }
+    if (bannerEl) {
+      const show = !!s.banner;
+      if (cache.bannerShow !== show) {
+        cache.bannerShow = show;
+        bannerEl.style.display = show ? 'block' : 'none';
+      }
+      if (show) setText(bannerEl, 'banner', s.banner);
+    }
+    setText(soundEl, 'sound', s.soundOn ? 'SOUND ON' : 'SOUND OFF');
+    drawMinimap(s);
   }
 
-  drawMinimap(G, px, pz) {
-    const cv = this.el.minimap;
-    if (!cv) return;
-    const g = cv.getContext('2d');
-    const S = cv.width;
-    const scale = S / 430;
-    const toX = (x) => S / 2 + x * scale;
-    const toY = (z) => S / 2 + z * scale;
-    g.fillStyle = '#14101f';
-    g.fillRect(0, 0, S, S);
-    g.strokeStyle = '#5a4a68';
-    g.lineWidth = 2;
-    for (let k = -3; k <= 3; k++) {
-      const c = k * 52;
-      g.beginPath();
-      g.moveTo(toX(c), 0);
-      g.lineTo(toX(c), S);
-      g.stroke();
-      g.beginPath();
-      g.moveTo(0, toY(c));
-      g.lineTo(S, toY(c));
-      g.stroke();
-    }
-    // mission marker
-    const job = G.jobs.current;
-    g.fillStyle = '#ffd23e';
-    g.beginPath();
-    g.arc(toX(job.marker[0]), toY(job.marker[1]), 5, 0, Math.PI * 2);
-    g.fill();
-    // traffic
-    g.fillStyle = '#8ad0ff';
-    for (const m of G.traffic.movers) {
-      const x = m.axis === 'x' ? m.along : m.lane;
-      const z = m.axis === 'x' ? m.lane : m.along;
-      g.fillRect(toX(x) - 1.5, toY(z) - 1.5, 3, 3);
-    }
-    // police
-    g.fillStyle = '#ff4040';
-    for (const c of G.police.cruisers) {
-      g.beginPath();
-      g.arc(toX(c.x), toY(c.z), 3, 0, Math.PI * 2);
-      g.fill();
-    }
-    // player arrow
-    const yaw = G.inCar ? G.car.yaw : G.hero.yaw;
-    g.save();
-    g.translate(toX(px), toY(pz));
-    g.rotate(Math.atan2(Math.sin(yaw), -Math.cos(yaw)));
-    g.fillStyle = '#ffffff';
-    g.beginPath();
-    g.moveTo(0, -6);
-    g.lineTo(4.5, 5);
-    g.lineTo(-4.5, 5);
-    g.closePath();
-    g.fill();
-    g.restore();
+  function show(id) {
+    const n = el(id);
+    if (n) n.style.display = 'block';
   }
+  function hide(id) {
+    const n = el(id);
+    if (n) n.style.display = 'none';
+  }
+
+  return { update, show, hide, compassArrow };
 }

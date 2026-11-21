@@ -1,135 +1,93 @@
-// Rico on foot: a simple humanoid with camera-relative WASD movement
-// (W walks AWAY from the camera, A/D strafe), walk bob, arm swing, punch.
+// Rico on foot: a simple blocky humanoid with walk bob, arm swing and a
+// punch animation. Movement is camera-relative: W walks AWAY from the
+// camera, never toward it.
 import * as THREE from 'three';
+import { clamp } from './rng.js';
 
-export class Hero {
-  constructor(scene) {
-    this.scene = scene;
-    this.pos = { x: 0, z: 60 };
-    this.yaw = Math.PI;
-    this.speed = 0;
-    this.bob = 0;
-    this.punchCd = 0;
-    this.punchAnim = 0;
-    this.group = new THREE.Group();
-    const legMat = new THREE.MeshStandardMaterial({ color: 0x3a4a6a, roughness: 0.9 });
-    const legGeo = new THREE.BoxGeometry(0.17, 0.78, 0.17);
-    this.legL = new THREE.Mesh(legGeo, legMat);
-    this.legL.position.set(-0.12, 0.39, 0);
-    this.legR = new THREE.Mesh(legGeo, legMat);
-    this.legR.position.set(0.12, 0.39, 0);
-    // bright orange shirt so Rico reads against the warm road
-    this.torso = new THREE.Mesh(
-      new THREE.BoxGeometry(0.54, 0.66, 0.3),
-      new THREE.MeshStandardMaterial({ color: 0xff6a1a, roughness: 0.85 }),
-    );
-    this.torso.position.y = 1.1;
-    this.armL = new THREE.Mesh(
-      new THREE.BoxGeometry(0.14, 0.6, 0.14),
-      new THREE.MeshStandardMaterial({ color: 0xd9a077, roughness: 0.8 }),
-    );
-    this.armL.position.set(-0.35, 1.1, 0);
-    this.armR = new THREE.Mesh(
-      new THREE.BoxGeometry(0.14, 0.6, 0.14),
-      new THREE.MeshStandardMaterial({ color: 0xd9a077, roughness: 0.8 }),
-    );
-    this.armR.position.set(0.35, 1.1, 0);
-    this.head = new THREE.Mesh(
-      new THREE.BoxGeometry(0.32, 0.32, 0.32),
-      new THREE.MeshStandardMaterial({ color: 0xd9a077, roughness: 0.8 }),
-    );
-    this.head.position.y = 1.62;
-    this.cap = new THREE.Mesh(
-      new THREE.BoxGeometry(0.36, 0.11, 0.36),
-      new THREE.MeshStandardMaterial({ color: 0xf2c230, roughness: 0.8 }),
-    );
-    this.cap.position.y = 1.82;
-    this.group.add(this.legL, this.legR, this.torso, this.armL, this.armR, this.head, this.cap);
-    this.group.traverse((o) => {
-      if (o.isMesh) o.castShadow = true;
-    });
-    this.scene.add(this.group);
-    this.sync();
-  }
+export function makeHero(scene) {
+  const group = new THREE.Group();
+  const skin = new THREE.MeshStandardMaterial({ color: 0xe8b98a, roughness: 0.8 });
+  const shirt = new THREE.MeshStandardMaterial({ color: 0xff6a1f, roughness: 0.85 });
+  const jeans = new THREE.MeshStandardMaterial({ color: 0x7fa8c9, roughness: 0.9 });
+  const dark = new THREE.MeshStandardMaterial({ color: 0x2a2a30, roughness: 0.9 });
+  const capMat = new THREE.MeshStandardMaterial({ color: 0xffd21f, roughness: 0.8 });
 
-  place(x, z, yaw) {
-    this.pos.x = x;
-    this.pos.z = z;
-    this.yaw = yaw;
-    this.sync();
-  }
+  const legL = new THREE.Mesh(new THREE.BoxGeometry(0.26, 0.8, 0.3), jeans);
+  legL.position.set(-0.16, 0.4, 0);
+  const legR = legL.clone();
+  legR.position.x = 0.16;
+  const torso = new THREE.Mesh(new THREE.BoxGeometry(0.72, 0.78, 0.4), shirt);
+  torso.position.y = 1.19;
+  const armL = new THREE.Mesh(new THREE.BoxGeometry(0.2, 0.68, 0.24), shirt);
+  armL.position.set(-0.48, 1.2, 0);
+  const armR = armL.clone();
+  armR.position.x = 0.48;
+  const head = new THREE.Mesh(new THREE.BoxGeometry(0.42, 0.42, 0.4), skin);
+  head.position.y = 1.82;
+  const cap = new THREE.Mesh(new THREE.BoxGeometry(0.46, 0.14, 0.44), capMat);
+  cap.position.y = 2.06;
+  const brim = new THREE.Mesh(new THREE.BoxGeometry(0.46, 0.05, 0.24), capMat);
+  brim.position.set(0, 2.0, 0.3);
+  group.add(legL, legR, torso, armL, armR, head, cap, brim);
+  group.traverse((o) => { if (o.isMesh) o.castShadow = true; });
+  scene.add(group);
 
-  sync() {
-    this.group.position.set(this.pos.x, Math.abs(Math.sin(this.bob)) * 0.05, this.pos.z);
-    this.group.rotation.y = this.yaw;
-  }
+  return {
+    group, legL, legR, armL, armR,
+    x: 0, z: 40, yaw: Math.PI, // faces -Z (toward the first marker)
+    speed: 0, moving: false, bobPhase: 0,
+    punchTimer: 0, punchCooldown: 0,
+  };
+}
 
-  // input: {fwd, back, left, right} in camera space. camYaw is the camera
-  // azimuth; forward on screen is (sin camYaw, cos camYaw).
-  walk(dt, input, camYaw, city) {
-    this.punchCd -= dt;
-    this.punchAnim = Math.max(0, this.punchAnim - dt * 4);
-    const fx = Math.sin(camYaw);
-    const fz = Math.cos(camYaw);
-    const rx = -Math.cos(camYaw);
-    const rz = Math.sin(camYaw);
-    let mx = 0;
-    let mz = 0;
-    if (input.fwd) {
-      mx += fx;
-      mz += fz;
-    }
-    if (input.back) {
-      mx -= fx;
-      mz -= fz;
-    }
-    if (input.right) {
-      mx += rx;
-      mz += rz;
-    }
-    if (input.left) {
-      mx -= rx;
-      mz -= rz;
-    }
-    const len = Math.hypot(mx, mz);
-    if (len > 0.01) {
-      mx /= len;
-      mz /= len;
-      const run = input.run ? 8.2 : 5.2;
-      this.pos.x += mx * run * dt;
-      this.pos.z += mz * run * dt;
-      this.speed = run;
-      const want = Math.atan2(mx, mz);
-      let diff = want - this.yaw;
-      while (diff > Math.PI) diff -= Math.PI * 2;
-      while (diff < -Math.PI) diff += Math.PI * 2;
-      this.yaw += Math.max(-10 * dt, Math.min(10 * dt, diff));
-      this.bob += dt * (input.run ? 13 : 9);
-    } else {
-      this.speed = 0;
-      this.bob += dt * 2;
-    }
-    city.collideCircle(this.pos, 0.55);
-    this.sync();
-    this.legL.rotation.x = Math.sin(this.bob) * (this.speed > 0 ? 0.6 : 0);
-    this.legR.rotation.x = -Math.sin(this.bob) * (this.speed > 0 ? 0.6 : 0);
-    this.armL.rotation.x = -Math.sin(this.bob) * (this.speed > 0 ? 0.5 : 0);
-    // right arm extends during a punch
-    this.armR.rotation.x = this.punchAnim > 0 ? -1.5 * this.punchAnim : Math.sin(this.bob) * (this.speed > 0 ? 0.5 : 0);
+// input: {f, s, l, r} forward/strafe as -1..1, run bool, camYaw number.
+// Returns the hero's planar speed for the HUD/engine sound.
+export function stepHero(hero, input, dt, city) {
+  const walkSpeed = input.run ? 7.0 : 4.4;
+  // Camera-relative: forward is the camera's look direction on the ground.
+  const fx = Math.sin(input.camYaw);
+  const fz = Math.cos(input.camYaw);
+  // Camera right = look x up = (-cos, sin) in (x, z).
+  const rx = -Math.cos(input.camYaw);
+  const rz = Math.sin(input.camYaw);
+  let mx = fx * input.f + rx * input.s;
+  let mz = fz * input.f + rz * input.s;
+  const len = Math.hypot(mx, mz);
+  hero.moving = len > 0.01;
+  if (hero.moving) {
+    mx /= len;
+    mz /= len;
+    const targetYaw = Math.atan2(mx, mz);
+    let dy = targetYaw - hero.yaw;
+    while (dy > Math.PI) dy -= Math.PI * 2;
+    while (dy < -Math.PI) dy += Math.PI * 2;
+    hero.yaw += clamp(dy, -9 * dt, 9 * dt);
+    const nx = hero.x + mx * walkSpeed * dt;
+    const nz = hero.z + mz * walkSpeed * dt;
+    const fixed = city.collide(nx, nz, 0.55);
+    const clamped = city.clampPos(fixed.x, fixed.z);
+    hero.x = clamped.x;
+    hero.z = clamped.z;
+    hero.speed = walkSpeed;
+    hero.bobPhase += dt * (input.run ? 11 : 8);
+  } else {
+    hero.speed = 0;
   }
-
-  tryPunch() {
-    if (this.punchCd > 0) return false;
-    this.punchCd = 0.45;
-    this.punchAnim = 1;
-    return true;
+  // Walk bob + arm swing, eased back to idle when standing still.
+  const amp = hero.moving ? 1 : 0;
+  const bob = Math.abs(Math.sin(hero.bobPhase)) * 0.07 * amp;
+  hero.group.position.set(hero.x, bob, hero.z);
+  hero.group.rotation.y = hero.yaw;
+  hero.legL.rotation.x = Math.sin(hero.bobPhase) * 0.55 * amp;
+  hero.legR.rotation.x = -Math.sin(hero.bobPhase) * 0.55 * amp;
+  hero.armL.rotation.x = -Math.sin(hero.bobPhase) * 0.45 * amp;
+  hero.armR.rotation.x = Math.sin(hero.bobPhase) * 0.45 * amp;
+  // Punch: quick forward swing of the right arm.
+  if (hero.punchTimer > 0) {
+    hero.punchTimer -= dt;
+    const k = 1 - hero.punchTimer / 0.28;
+    hero.armR.rotation.x = -1.5 * Math.sin(Math.min(k, 1) * Math.PI);
   }
-
-  // World position a short step in front of Rico's chest.
-  punchPoint() {
-    return {
-      x: this.pos.x + Math.sin(this.yaw) * 1.4,
-      z: this.pos.z + Math.cos(this.yaw) * 1.4,
-    };
-  }
+  if (hero.punchCooldown > 0) hero.punchCooldown -= dt;
+  return hero.speed;
 }

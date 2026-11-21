@@ -4,23 +4,53 @@
 
 # Neon Bay
 
-An original open-world crime game for make.fun's **Make GTA 6** bounty (gta6-01). Rico owes $1,200 to Vinnie "The Ledger" Marlow. Four jobs — The Pickup, The Drop, The Getaway, The Payoff — stand between him and freedom.
-
-Explore a golden-hour grid city on foot and by car, steal cars, dodge police cruisers that chase and ram, punch your way out of trouble, and watch your rank, RP and district standing rise with every job done. Synthesized WebAudio only: engine hum, two-tone sirens, and a two-station car radio (M switches station).
+An original open-world crime game built for make.fun's **Make GTA 6** bounty
+(gta6-01). Rico owes $1,200 to Vinnie "The Ledger" Marlow and works it off
+over four jobs across a golden-hour city: steal cars, outrun the cruisers,
+make the drops.
 
 ## Play
 
 ```sh
 node serve.ts
-# open http://localhost:8080/game/index.html
 ```
 
-WASD move · mouse drag to look · E enter / exit car · click punch · Space brake · M radio · P pause · X mute.
+Then open http://localhost:8080 in desktop Chrome. Keyboard + mouse:
+WASD to move, mouse drag to look, E to enter/exit a car, click to punch,
+Space to brake, M to switch radio station, P to pause, X to mute.
+
+## The game
+
+- A deterministic grid city: buildings with lit windows, sidewalks,
+  streetlights, palm trees, traffic and pedestrians.
+- Four story jobs (The Pickup, The Drop, The Getaway, The Payoff) with a
+  gold marker beam, pay, and a mission-complete banner.
+- Progression that is really computed: RP from job pay, a rank letter
+  derived from RP, and district standing per district.
+- A wanted level (0–4) with one named police cruiser per star
+  (REEF-12, TIDE-7, SURF-3, BAY-9), each with a live role and distance in
+  the police panel. Cruisers chase, flash their light bars and ram.
+- A two-station car radio (SUNSET FM, BAY 94) playing synthesized WebAudio,
+  an engine hum, a two-tone siren, and a vehicle damage bar fed by real
+  collisions and rams.
+- A HUD with wanted stars, health, money, rank/RP, district standing,
+  mission block, police panel, dialogue, speed, a compass with a live
+  distance to the marker, a minimap, and a save in localStorage.
+- Combat is punch-only: punching a pedestrian knocks them down; punching a
+  police car raises wanted by 1.
 
 ## Tech
 
-Three.js r160 (vendored under `game/vendor/`), ES modules under `game/src/`, no build step, no network request at runtime. `main.ts` hands the game in: it copies `game/` and `screenshots/` and writes `dossier.json` with the vendored make.fun library.
+Three.js r160 (vendored under `game/vendor/`), ES modules under `game/src/`,
+no build step, no network request at runtime. All art is procedural
+(geometry + canvas textures generated at runtime) and all sound is
+synthesized WebAudio.
 
-## Screenshots
+`main.ts` hands the entry in: it copies `game/` and `screenshots/` to the
+output directory and writes `dossier.json` with the vendored make.fun
+library. Screenshots in `screenshots/` are real renders of the game's own
+code, taken with headless Chromium.
 
-Four real renders of the game's own code: cover (on foot at golden hour), driving, a four-star police chase, and a mission complete.
+## License
+
+MIT. See [LICENSE](LICENSE).

@@ -1,48 +1,37 @@
-// The four jobs, the debt story, and the progression numbers.
-// RP and rank are derived from real job completions, never typed in.
+// Missions and progression. Four jobs pay off Rico's $1,200 debt to Vinnie
+// "The Ledger" Marlow. RP accrues from job pay; rank is derived from RP.
+// District standing is per-district: missions completed in the district
+// the player is standing in, never a global count.
 export const JOBS = [
   {
-    title: 'The Pickup',
-    pay: 200,
+    title: 'The Pickup', pay: 200, district: 'Marina',
     text: 'Pick up the package at the corner of 48th and Harbour.',
     story: 'Rico grabs the package. One down — the Ledger is watching.',
-    speaker: 'vinnie',
-    marker: [0, -60],
-    district: 'Marina',
+    speaker: 'VINNIE "THE LEDGER" MARLOW',
+    marker: { x: 0, z: -60 },
   },
   {
-    title: 'The Drop',
-    pay: 300,
+    title: 'The Drop', pay: 300, district: 'Marina',
     text: 'Deliver the package to the docks before the heat arrives.',
     story: 'Drop made. Vinnie counts the bills and nods. Two to go.',
-    speaker: 'vinnie',
-    marker: [104, -104],
-    district: 'Marina',
+    speaker: 'VINNIE "THE LEDGER" MARLOW',
+    marker: { x: 120, z: -60 },
   },
   {
-    title: 'The Getaway',
-    pay: 300,
-    text: 'Reach the safehouse while the sirens are on you.',
+    title: 'The Getaway', pay: 300, district: 'Downtown',
+    text: 'Reach the safehouse while the heat is on.',
     story: 'Rico slips into the safehouse. The sirens fade. One last job.',
-    speaker: 'rico',
-    marker: [-104, 52],
-    district: 'Old Town',
+    speaker: 'RICO',
+    marker: { x: -60, z: 120 },
   },
   {
-    title: 'The Payoff',
-    pay: 400,
+    title: 'The Payoff', pay: 400, district: 'Downtown',
     text: "Drive to Vinnie's office and settle the debt.",
     story: "Debt paid. Neon Bay is Rico's again — free roam, no more jobs.",
-    speaker: 'vinnie',
-    marker: [52, 104],
-    district: 'Hillside',
+    speaker: 'VINNIE "THE LEDGER" MARLOW',
+    marker: { x: 60, z: 120 },
   },
 ];
-
-export const SPEAKERS = {
-  vinnie: 'VINNIE "THE LEDGER" MARLOW',
-  rico: 'RICO',
-};
 
 export function rankFor(rp) {
   if (rp >= 800) return 'S';
@@ -52,48 +41,64 @@ export function rankFor(rp) {
   return 'D';
 }
 
-export class JobState {
-  constructor() {
-    this.index = 0;
-    this.money = 0;
-    this.rp = 0;
-    this.doneByDistrict = {};
-    this.missionsDone = 0;
+// District by quadrant of the city grid.
+export function districtAt(x, z) {
+  if (x < 0 && z < 0) return 'Old Town';
+  if (x >= 0 && z < 0) return 'Marina';
+  if (x < 0 && z >= 0) return 'Harbour';
+  return 'Downtown';
+}
+
+export function makeJobs() {
+  const state = {
+    index: 0,
+    money: 0,
+    rp: 0,
+    doneByDistrict: {},
+    missionsDone: 0,
+    banner: '',
+    bannerTimer: 0,
+  };
+
+  function current() {
+    return JOBS[Math.min(state.index, JOBS.length - 1)];
+  }
+  function next() {
+    return JOBS[Math.min(state.index + 1, JOBS.length - 1)];
+  }
+  function standingHere(district) {
+    return (state.doneByDistrict[district] || 0) * 25;
   }
 
-  get current() {
-    return JOBS[Math.min(this.index, JOBS.length - 1)];
-  }
-
-  get nextTitle() {
-    if (this.index + 1 < JOBS.length) return JOBS[this.index + 1].title;
-    return 'Free roam';
-  }
-
-  get district() {
-    return this.current.district;
-  }
-
-  get standing() {
-    return (this.doneByDistrict[this.current.district] || 0) * 25;
-  }
-
-  get rank() {
-    return rankFor(this.rp);
-  }
-
-  get finished() {
-    return this.index >= JOBS.length;
-  }
-
-  // Called when the player reaches the current marker. Returns the payout.
-  complete() {
-    const job = this.current;
-    this.money += job.pay;
-    this.rp += Math.round(job.pay / 2) + 25;
-    this.doneByDistrict[job.district] = (this.doneByDistrict[job.district] || 0) + 1;
-    this.missionsDone += 1;
-    this.index += 1;
+  // Returns the completed job, or null. Completion pays, adds RP, updates
+  // per-district standing and shows the banner with the story line.
+  function tryComplete(px, pz) {
+    if (state.index >= JOBS.length) return null;
+    const job = JOBS[state.index];
+    const dx = px - job.marker.x;
+    const dz = pz - job.marker.z;
+    if (dx * dx + dz * dz > 36) return null; // within 6 m
+    state.money += job.pay;
+    state.rp += Math.round(job.pay / 2) + 25;
+    state.doneByDistrict[job.district] = (state.doneByDistrict[job.district] || 0) + 1;
+    state.missionsDone += 1;
+    state.index += 1;
+    state.banner = `MISSION COMPLETE — ${job.title} +$${job.pay}`;
+    state.bannerTimer = 4;
     return job;
   }
+
+  function applySave(save) {
+    state.money = save.money || 0;
+    state.index = Math.max(0, Math.min(JOBS.length, save.missionIndex || 0));
+    state.rp = save.rp || 0;
+    state.missionsDone = state.index;
+  }
+
+  return {
+    state, JOBS, current, next, standingHere, tryComplete, applySave,
+    get money() { return state.money; },
+    get rp() { return state.rp; },
+    get rank() { return rankFor(state.rp); },
+  };
 }
