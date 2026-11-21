@@ -1,18 +1,1 @@
-[
-  {
-    "name": "1-start.jpg",
-    "query": "?shot=1"
-  },
-  {
-    "name": "2-drive.jpg",
-    "query": "?shot=2"
-  },
-  {
-    "name": "3-chase.jpg",
-    "query": "?shot=3"
-  },
-  {
-    "name": "4-mission.jpg",
-    "query": "?shot=4"
-  }
-]
+{"shots":[{"file":"screenshots/1-start.jpg","n":1,"name":"start","shot":1},{"file":"screenshots/2-drive.jpg","n":2,"name":"drive","shot":2},{"file":"screenshots/3-chase.jpg","n":3,"name":"chase","shot":3},{"file":"screenshots/4-mission.jpg","n":4,"name":"mission","shot":4}]}

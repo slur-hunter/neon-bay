@@ -1,4 +1,5 @@
-# Neon Bay v7 — local build output and tooling, never committed.
+# Neon Bay v8 — local build output and test artifacts (v8)
 out/
 node_modules/
 .DS_Store
+/tmp/

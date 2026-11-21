@@ -3,86 +3,115 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<link rel="icon" href="data:,">
-<title>Neon Bay — Open World Crime Game</title>
+<title>Neon Bay — an original open-world crime game</title>
 <style>
-  html, body { margin: 0; padding: 0; width: 100%; height: 100%; overflow: hidden; background: #1a2b4a; font-family: 'Segoe UI', Arial, sans-serif; }
+  html, body { margin: 0; padding: 0; width: 100%; height: 100%; overflow: hidden; background: #1a1024; font-family: 'Segoe UI', system-ui, sans-serif; }
   #app { position: fixed; inset: 0; }
-  #gl { display: block; width: 100%; height: 100%; }
-  #hud { position: absolute; inset: 0; pointer-events: none; color: #fff; text-shadow: 0 1px 3px rgba(0,0,0,.8); }
-  #topbar { position: absolute; top: 12px; left: 14px; display: flex; gap: 18px; align-items: center; font-size: 20px; font-weight: bold; }
-  #stars { color: #ffd23f; font-size: 24px; letter-spacing: 2px; }
-  #stars .off { color: rgba(255,255,255,.35); }
-  #healthwrap { width: 160px; height: 14px; background: rgba(0,0,0,.55); border: 1px solid rgba(255,255,255,.6); border-radius: 7px; overflow: hidden; }
-  #healthbar { display: block; height: 100%; width: 100%; background: linear-gradient(90deg,#37c978,#7dff9b); }
-  #money { position: absolute; top: 12px; right: 14px; font-size: 22px; font-weight: 800; color: #7dff9b; }
-  #mission { position: absolute; top: 48px; right: 14px; max-width: 340px; text-align: right; font-size: 15px; line-height: 1.35; }
-  #mission b { color: #ffd23f; }
-  #stageLine { margin-top: 4px; font-size: 13px; font-weight: bold; color: #ffe45e; }
-  #policePanel { position: absolute; top: 64px; left: 14px; max-width: 260px; font-size: 13px; line-height: 1.5; background: rgba(0,0,0,.5); border: 1px solid rgba(255,80,80,.7); border-radius: 6px; padding: 6px 10px; display: none; }
-  #policePanel .ptitle { color: #ff8c8c; font-weight: bold; letter-spacing: 1px; }
-  #speed { position: absolute; bottom: 14px; right: 14px; font-size: 26px; font-weight: 800; }
-  #speed small { font-size: 13px; color: #cfe3ff; }
-  #hint { position: absolute; bottom: 14px; left: 14px; font-size: 13px; color: #dfeaff; background: rgba(0,0,0,.45); padding: 6px 10px; border-radius: 6px; line-height: 1.5; }
-  #minimap { position: absolute; right: 14px; bottom: 58px; width: 180px; height: 180px; border: 2px solid rgba(255,255,255,.75); border-radius: 8px; background: rgba(10,20,40,.85); }
-  #banner { position: absolute; top: 22%; left: 0; right: 0; text-align: center; font-size: 30px; font-weight: 900; color: #ffe45e; display: none; }
-  #banner small { display: block; font-size: 16px; font-weight: normal; color: #fff; margin-top: 6px; }
-  #compass { position: absolute; top: 12px; left: 50%; transform: translateX(-50%); font-size: 13px; color: #ffe45e; text-align: center; }
-  #compassArrow { font-size: 26px; color: #ffd23f; transition: transform .15s linear; display: block; }
-  #dialogue { position: absolute; bottom: 58px; left: 14px; max-width: 420px; font-size: 14px; line-height: 1.4; background: rgba(0,0,0,.55); border-left: 3px solid #ffd23f; border-radius: 4px; padding: 8px 12px; }
-  #dialogueName { color: #ffd23f; font-weight: bold; font-size: 12px; letter-spacing: 1px; }
-  #dialogueText { color: #fff; }
-  .overlay { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; background: linear-gradient(rgba(20,30,60,.55), rgba(255,140,60,.35)); pointer-events: auto; }
-  .overlay h1 { font-size: 64px; letter-spacing: 6px; color: #ffe45e; text-shadow: 0 0 24px rgba(255,140,0,.8), 0 3px 0 #c33; margin: 0 0 8px; }
-  .overlay h2 { font-size: 20px; color: #ffd9a0; margin: 0 0 16px; }
-  .overlay p { max-width: 620px; font-size: 16px; line-height: 1.55; color: #fff; margin: 0 0 16px; }
-  .overlay .controls { font-size: 14px; background: rgba(0,0,0,.5); border-radius: 8px; padding: 12px 18px; line-height: 1.8; text-align: left; color: #fff; margin-bottom: 20px; }
-  .overlay button { font-size: 20px; font-weight: 800; padding: 12px 34px; border: none; border-radius: 10px; background: linear-gradient(#ffcf3f, #ff8c1a); color: #3a1500; box-shadow: 0 4px 0 #a34d00; cursor: pointer; }
-  .overlay button:hover { filter: brightness(1.08); }
-  #pause, #gameover { display: none; }
-  #continueRow { display: none; margin-bottom: 16px; }
-  #loading { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; color: #fff; font-size: 18px; background: #1a2b4a; }
+  #app canvas { display: block; }
+  .hud { position: fixed; color: #fff; text-shadow: 0 1px 3px rgba(0,0,0,.85); pointer-events: none; z-index: 5; }
+  .panel { background: rgba(12, 8, 22, 0.62); border: 1px solid rgba(255, 190, 90, 0.35); border-radius: 8px; padding: 6px 10px; }
+  #topleft { top: 12px; left: 12px; display: flex; flex-direction: column; gap: 6px; max-width: 300px; }
+  #stars { font-size: 22px; color: #ffc94d; letter-spacing: 2px; }
+  .bar { width: 180px; height: 12px; background: rgba(255,255,255,.18); border-radius: 6px; overflow: hidden; }
+  .bar > div { height: 100%; width: 100%; }
+  #money { font-size: 26px; font-weight: 800; color: #7dff9a; }
+  #rankline, #districtline { font-size: 13px; font-weight: 700; color: #ffd27a; }
+  #policepanel { font-size: 12px; line-height: 1.5; color: #ffb0b0; white-space: pre-line; }
+  #mission { top: 12px; right: 12px; max-width: 300px; }
+  #jobtitle { font-size: 18px; font-weight: 800; color: #ffc94d; }
+  #jobtext { font-size: 13px; margin-top: 2px; }
+  #jobstage { font-size: 13px; font-weight: 700; color: #7dd8ff; margin-top: 4px; }
+  #jobnext { font-size: 12px; color: #c9c2d8; }
+  #speedo { top: 150px; right: 12px; text-align: right; }
+  #speed { font-size: 24px; font-weight: 800; }
+  #compass { font-size: 14px; color: #ffd27a; }
+  #dialoguebox { left: 12px; bottom: 12px; max-width: 420px; }
+  #speaker { font-size: 12px; font-weight: 800; color: #ff9d4d; letter-spacing: 1px; }
+  #dialogue { font-size: 14px; font-style: italic; }
+  #carrows { left: 12px; bottom: 108px; display: flex; flex-direction: column; gap: 6px; }
+  #damagerow, #radiorow { font-size: 13px; font-weight: 700; }
+  #damagebar { width: 160px; height: 10px; background: rgba(255,255,255,.18); border-radius: 5px; overflow: hidden; margin-top: 3px; }
+  #damagefill { height: 100%; width: 0%; }
+  #minimap { position: fixed; right: 12px; bottom: 12px; width: 180px; height: 180px; border: 2px solid rgba(255, 190, 90, 0.5); border-radius: 8px; background: #17131f; z-index: 5; }
+  #banner { top: 38%; left: 50%; transform: translateX(-50%); font-size: 26px; font-weight: 900; color: #ffc94d; background: rgba(12, 8, 22, 0.75); border: 2px solid #ffc94d; border-radius: 10px; padding: 10px 22px; white-space: nowrap; }
+  #hint { bottom: 12px; left: 50%; transform: translateX(-50%); font-size: 12px; color: #d8d2e8; }
+  .overlay { position: fixed; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 14px; background: linear-gradient(180deg, rgba(43, 20, 60, 0.92), rgba(20, 10, 30, 0.94)); color: #fff; z-index: 10; text-align: center; }
+  .overlay h1 { font-size: 54px; margin: 0; letter-spacing: 6px; color: #ffc94d; text-shadow: 0 0 24px rgba(255, 160, 60, 0.7); }
+  .overlay p { max-width: 560px; font-size: 15px; line-height: 1.6; color: #e8e2f2; margin: 0; }
+  .overlay button { pointer-events: auto; cursor: pointer; font-size: 18px; font-weight: 800; padding: 12px 30px; border-radius: 10px; border: none; background: #ffc94d; color: #241428; }
+  .overlay button:hover { background: #ffd97a; }
+  .overlay .keys { font-size: 13px; color: #c9c2d8; }
+  #mutebtn { position: fixed; right: 12px; bottom: 204px; z-index: 6; pointer-events: auto; cursor: pointer; background: rgba(12, 8, 22, 0.62); color: #fff; border: 1px solid rgba(255, 190, 90, 0.35); border-radius: 6px; padding: 5px 10px; font-size: 12px; }
+  #loadingov { font-size: 22px; color: #ffd27a; }
 </style>
 <script type="importmap">
 { "imports": { "three": "./vendor/three.module.min.js" } }
 </script>
 </head>
 <body>
-<div id="app">
-  <canvas id="gl"></canvas>
-  <div id="hud">
-    <div id="topbar"><span id="stars">★★★★</span><span id="healthwrap"><span id="healthbar"></span></span></div>
-    <div id="money">$0</div>
-    <div id="mission"></div>
-    <div id="policePanel"><div class="ptitle">BAY CITY PD — RESPONSE</div><div id="policeList"></div></div>
-    <div id="compass"><span id="compassArrow">▲</span><span id="compassDist"></span></div>
-    <canvas id="minimap" width="180" height="180"></canvas>
-    <div id="speed">0 <small>mph</small></div>
-    <div id="dialogue"><div id="dialogueName"></div><div id="dialogueText"></div></div>
-    <div id="hint">WASD move / drive · Mouse drag look · E enter / exit car · Click punch · Space brake · P pause</div>
-    <div id="banner"><span id="bannerTitle"></span><small id="bannerSub"></small></div>
-    <div id="stageLine" style="position:absolute; top:118px; right:14px; max-width:340px; text-align:right; font-size:13px; font-weight:bold; color:#ffe45e;"></div>
-  </div>
-  <div id="start" class="overlay">
-    <h1>NEON BAY</h1>
-    <h2>An open-world crime story — sun, streets, and one big debt</h2>
-    <p>Rico owes $1,200 to Vinnie "The Ledger" Marlow. Four jobs stand between him and a clean slate: pick up the package, make the drop, shake the heat, and pay the man. Steal a car, outrun the law, and earn every dollar.</p>
-    <div class="controls">WASD walk / drive · Mouse drag look · E steal / exit car · Click punch · Space brake · Shift run · P pause · M mute</div>
-    <p id="continueRow"><button id="continueBtn">CONTINUE — <span id="continueMoney"></span></button></p>
-    <button id="startBtn">START ENGINE</button>
-  </div>
-  <div id="pause" class="overlay">
-    <h1>PAUSED</h1>
-    <p>Neon Bay waits for no one — except right now.</p>
-    <button id="resumeBtn">RESUME</button>
-  </div>
-  <div id="gameover" class="overlay">
-    <h1>BUSTED OUT</h1>
-    <p id="gameoverText"></p>
-    <button id="restartBtn">START OVER</button>
-  </div>
-  <div id="loading">Loading Neon Bay…</div>
+<div id="app"></div>
+
+<div class="hud panel" id="topleft">
+  <div id="stars">☆☆☆☆</div>
+  <div class="bar"><div id="healthfill"></div></div>
+  <div id="money">$0</div>
+  <div id="rankline">RANK D · 0 RP</div>
+  <div id="districtline">Downtown · STANDING 0</div>
+  <div id="policepanel" style="display:none"><div id="policelines"></div></div>
 </div>
-<script type="module" src="./src/engine.js"></script>
+
+<div class="hud panel" id="mission">
+  <div id="jobtitle">The Pickup</div>
+  <div id="jobtext">Pick up the package at the corner of 48th and Harbor.</div>
+  <div id="jobstage">JOB 1/4</div>
+  <div id="jobnext">NEXT: The Drop</div>
+</div>
+
+<div class="hud panel" id="speedo">
+  <div id="speed">ON FOOT</div>
+  <div id="compass">↑ 0m</div>
+</div>
+
+<div class="hud panel" id="dialoguebox">
+  <div id="speaker">VINNIE "THE LEDGER" MARLOW</div>
+  <div id="dialogue">Rico grabs the package. One down, the Ledger is watching.</div>
+</div>
+
+<div class="hud" id="carrows">
+  <div class="panel" id="damagerow" style="display:none">
+    <div id="damagelabel">DAMAGE 0%</div>
+    <div id="damagebar"><div id="damagefill"></div></div>
+  </div>
+  <div class="panel" id="radiorow" style="display:none"><div id="radioline">♪ SUNSET FM</div></div>
+</div>
+
+<canvas id="minimap" width="180" height="180"></canvas>
+<button id="mutebtn">SOUND ON</button>
+<div class="hud" id="banner" style="display:none"></div>
+<div class="hud" id="hint">WASD move · E steal / exit car · Click punch · Space brake · M radio · P pause · drag to look</div>
+
+<div class="overlay" id="startov" style="display:none">
+  <h1>NEON BAY</h1>
+  <p>Rico owes $1,200 to Vinnie "The Ledger" Marlow. Four jobs stand between him and freedom: the Pickup, the Drop, the Getaway, the Payoff. Steal cars, dodge the Neon Bay PD, and pay the debt before the sun sets on the city.</p>
+  <button id="startbtn">START ENGINE</button>
+  <div id="continuerow" style="display:none"><button id="continuebtn">CONTINUE</button> <span id="continuelabel"></span></div>
+  <div class="keys">WASD move &middot; E steal / exit car &middot; Click punch &middot; Space brake &middot; M radio &middot; P pause &middot; drag mouse to look</div>
+</div>
+
+<div class="overlay" id="pauseov" style="display:none">
+  <h1>PAUSED</h1>
+  <p>The city waits. Press P or Resume to keep driving.</p>
+  <button id="resumebtn">RESUME</button>
+</div>
+
+<div class="overlay" id="gameoverov" style="display:none">
+  <h1>BUSTED</h1>
+  <p>The Neon Bay PD caught Rico. The debt still stands.</p>
+  <button id="againbtn">TRY AGAIN</button>
+</div>
+
+<div class="overlay" id="loadingov">Loading Neon Bay…</div>
+
+<script type="module" src="./src/main.js"></script>
 </body>
 </html>
