@@ -1,27 +1,34 @@
-// Save: localStorage (money, mission index, RP, timestamp), with safe
-// load and save. A corrupt or missing save is just an empty one.
-const KEY = 'neon-bay-save-v8';
+// Save: localStorage (money, mission index, RP, timestamp).
+// Safe load (validates numbers), safe save, clear. Never throws.
+const KEY = 'neon-bay-save-v9';
 
 export function loadSave() {
   try {
-    const raw = window.localStorage.getItem(KEY);
+    const raw = localStorage.getItem(KEY);
     if (!raw) return null;
-    const s = JSON.parse(raw);
-    if (typeof s.money !== 'number' || typeof s.index !== 'number') return null;
-    return { money: s.money, index: s.index, rp: s.rp || 0, at: s.at || 0 };
-  } catch {
+    const d = JSON.parse(raw);
+    if (typeof d.money !== 'number' || typeof d.index !== 'number') return null;
+    return {
+      money: d.money,
+      index: Math.max(0, Math.min(4, Math.floor(d.index))),
+      rp: typeof d.rp === 'number' ? d.rp : 0,
+      at: typeof d.at === 'number' ? d.at : 0,
+    };
+  } catch (e) {
     return null;
   }
 }
 
-export function writeSave(state) {
+export function saveGame(money, index, rp) {
   try {
-    window.localStorage.setItem(KEY, JSON.stringify({
-      money: state.money, index: state.index, rp: state.rp, at: Date.now(),
+    localStorage.setItem(KEY, JSON.stringify({
+      money, index, rp, at: Date.now(),
     }));
-  } catch { /* storage unavailable */ }
+  } catch (e) { /* storage unavailable */ }
 }
 
 export function clearSave() {
-  try { window.localStorage.removeItem(KEY); } catch { /* storage unavailable */ }
+  try {
+    localStorage.removeItem(KEY);
+  } catch (e) { /* storage unavailable */ }
 }

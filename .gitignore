@@ -1,5 +1,4 @@
-# Neon Bay v8 — local build output and test artifacts (v8)
+# Neon Bay v9 — ignore build output and local files
 out/
 node_modules/
 .DS_Store
-/tmp/

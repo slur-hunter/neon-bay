@@ -1,61 +1,38 @@
-// A tiny static server for game/ (Node 22, standard library only).
-// Run `node serve.ts [--port 8080]` and open http://localhost:8080.
-// Serves only files under game/, nothing else, no network calls.
-import { createReadStream, statSync } from 'node:fs';
+// Tiny static file server for local testing: serves game/ at the root.
+// Run `node serve.ts` from the repo root, then open http://localhost:8080.
 import { createServer } from 'node:http';
-import { extname, join, normalize, resolve, sep } from 'node:path';
+import { readFileSync, existsSync, statSync } from 'node:fs';
+import { join, extname, normalize } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
-const root = resolve(fileURLToPath(new URL('./game', import.meta.url)));
-const args = process.argv.slice(2);
-const portArg = args.indexOf('--port');
-const wanted = portArg === -1 ? 8080 : Number(args[portArg + 1]);
-const port = Number.isInteger(wanted) && wanted > 0 && wanted < 65536 ? wanted : 8080;
+const root = join(fileURLToPath(new URL('.', import.meta.url)), 'game');
+const port = Number(process.env.PORT || 8080);
 
-const TYPES = {
-  '.html': 'text/html; charset=utf-8',
-  '.js': 'text/javascript; charset=utf-8',
-  '.mjs': 'text/javascript; charset=utf-8',
-  '.css': 'text/css; charset=utf-8',
-  '.json': 'application/json; charset=utf-8',
+const types = {
+  '.html': 'text/html',
+  '.js': 'text/javascript',
+  '.mjs': 'text/javascript',
+  '.css': 'text/css',
+  '.json': 'application/json',
   '.png': 'image/png',
   '.jpg': 'image/jpeg',
   '.jpeg': 'image/jpeg',
-  '.gif': 'image/gif',
   '.webp': 'image/webp',
-  '.svg': 'image/svg+xml',
-  '.ico': 'image/x-icon',
 };
 
-createServer((req, res) => {
-  let path = '/';
-  try {
-    path = decodeURIComponent(new URL(req.url ?? '/', 'http://localhost').pathname);
-  } catch {
-    res.writeHead(400).end('bad request');
+const server = createServer((req, res) => {
+  const urlPath = decodeURIComponent((req.url || '/').split('?')[0]);
+  const rel = normalize(urlPath === '/' ? 'index.html' : urlPath.replace(/^\//, ''));
+  const file = join(root, rel);
+  if (!file.startsWith(root) || !existsSync(file) || !statSync(file).isFile()) {
+    res.writeHead(404, { 'content-type': 'text/plain' });
+    res.end('not found');
     return;
   }
-  if (path.endsWith('/')) path += 'index.html';
-  const file = resolve(join(root, normalize(path)));
-  if (file !== root && !file.startsWith(root + sep)) {
-    res.writeHead(403).end('forbidden');
-    return;
-  }
-  let size;
-  try {
-    const st = statSync(file);
-    if (!st.isFile()) throw new Error('not a file');
-    size = st.size;
-  } catch {
-    res.writeHead(404).end('not found');
-    return;
-  }
-  res.writeHead(200, {
-    'content-type': TYPES[extname(file).toLowerCase()] ?? 'application/octet-stream',
-    'content-length': size,
-    'cache-control': 'no-store',
-  });
-  createReadStream(file).pipe(res);
-}).listen(port, '127.0.0.1', () => {
-  console.log(`Neon Bay is on http://localhost:${port}`);
+  res.writeHead(200, { 'content-type': types[extname(file)] || 'application/octet-stream' });
+  res.end(readFileSync(file));
+});
+
+server.listen(port, () => {
+  console.log(`Neon Bay served at http://localhost:${port}`);
 });

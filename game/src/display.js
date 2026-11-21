@@ -1,138 +1,152 @@
-// HUD: every panel the screenshots show. Updates are cheap — a line is
-// only touched when its text actually changes. The minimap redraws on a
-// short throttle. All numbers come from live game state.
-import { CITY_HALF, STREET_AT } from './city.js';
+// HUD: every panel the game shows, updated cheaply — each value is cached
+// and the DOM is only touched when the content actually changes.
+// All numbers come from live game state; nothing here is hardcoded.
+import { CITY_EDGE, STREET_AT } from './city.js';
 
-function el(id) { return document.getElementById(id); }
+export function buildDisplay(doc) {
+  const el = (id) => doc.getElementById(id);
+  const starsEl = el('hud-stars');
+  const healthFill = el('hud-health-fill');
+  const moneyEl = el('hud-money');
+  const rankEl = el('hud-rank');
+  const standEl = el('hud-standing');
+  const missionTitle = el('hud-mission-title');
+  const missionText = el('hud-mission-text');
+  const missionStage = el('hud-mission-stage');
+  const missionNext = el('hud-mission-next');
+  const policeEl = el('hud-police');
+  const policeList = el('hud-police-list');
+  const dialogName = el('hud-dialog-name');
+  const dialogText = el('hud-dialog-text');
+  const speedEl = el('hud-speed');
+  const compassEl = el('hud-compass');
+  const damageWrap = el('hud-damage-wrap');
+  const damageFill = el('hud-damage-fill');
+  const damageText = el('hud-damage-text');
+  const radioWrap = el('hud-radio');
+  const radioText = el('hud-radio-text');
+  const bannerEl = el('hud-banner');
+  const minimap = el('hud-minimap');
+  const soundEl = el('hud-sound');
+  const ctx = minimap ? minimap.getContext('2d') : null;
 
-export function makeDisplay() {
-  const cache = {};
-  const set = (id, text) => {
-    if (cache[id] !== text) { cache[id] = text; const n = el(id); if (n) n.textContent = text; }
-  };
-  const show = (id, on) => {
-    const key = `show:${id}`;
-    if (cache[key] !== on) {
-      cache[key] = on;
-      const n = el(id);
-      if (n) n.style.display = on ? '' : 'none';
+  const last = {};
+  function set(key, node, value) {
+    if (last[key] !== value) {
+      last[key] = value;
+      if (node) node.textContent = value;
     }
-  };
-  const mini = el('minimap');
-  const mctx = mini ? mini.getContext('2d') : null;
-  let miniT = 0;
-
-  function drawMinimap(px, pz, yaw, marker, traffic, cops, peds) {
-    if (!mctx) return;
-    const W = mini.width, H = mini.height;
-    const px2 = (v) => ((v + CITY_HALF) / (CITY_HALF * 2)) * W;
-    mctx.fillStyle = '#241d33';
-    mctx.fillRect(0, 0, W, H);
-    mctx.strokeStyle = '#6a6478';
-    mctx.lineWidth = 6;
-    for (const s of STREET_AT) {
-      mctx.beginPath(); mctx.moveTo(0, px2(s)); mctx.lineTo(W, px2(s)); mctx.stroke();
-      mctx.beginPath(); mctx.moveTo(px2(s), 0); mctx.lineTo(px2(s), H); mctx.stroke();
+  }
+  function show(key, node, on) {
+    if (last[key] !== on) {
+      last[key] = on;
+      if (node) node.style.display = on ? '' : 'none';
     }
-    if (marker) {
-      mctx.fillStyle = '#ffc94d';
-      mctx.beginPath(); mctx.arc(px2(marker.x), px2(marker.z), 5, 0, Math.PI * 2); mctx.fill();
-      mctx.strokeStyle = '#ffc94d';
-      mctx.lineWidth = 1.5;
-      mctx.beginPath(); mctx.arc(px2(marker.x), px2(marker.z), 9, 0, Math.PI * 2); mctx.stroke();
-    }
-    mctx.fillStyle = '#8a8a9a';
-    for (const c of traffic) mctx.fillRect(px2(c.x) - 1.5, px2(c.z) - 1.5, 3, 3);
-    mctx.fillStyle = '#ff4050';
-    for (const c of cops) {
-      mctx.beginPath(); mctx.arc(px2(c.x), px2(c.z), 3.5, 0, Math.PI * 2); mctx.fill();
-    }
-    mctx.save();
-    mctx.translate(px2(px), px2(pz));
-    mctx.rotate(Math.atan2(Math.sin(yaw), Math.cos(yaw)));
-    mctx.fillStyle = '#ffffff';
-    mctx.beginPath();
-    mctx.moveTo(0, -9); mctx.lineTo(6, 6); mctx.lineTo(-6, 6); mctx.closePath();
-    mctx.fill();
-    mctx.restore();
   }
 
-  return {
-    update(s, dt) {
-      // Top-left cluster: stars, health, money, rank, standing.
-      const stars = '★'.repeat(s.wanted) + '☆'.repeat(Math.max(0, 4 - s.wanted));
-      set('stars', stars);
-      const hp = el('healthfill');
-      if (hp) {
-        const pct = Math.max(0, Math.round(s.health));
-        if (cache.hp !== pct) {
-          cache.hp = pct;
-          hp.style.width = `${pct}%`;
-          hp.style.background = pct > 55 ? '#57d977' : pct > 25 ? '#e8b23a' : '#e84a3a';
-        }
+  function update(s) {
+    // Stars: filled gold up to the wanted level.
+    let stars = '';
+    for (let i = 0; i < 4; i++) stars += i < s.wanted ? '★' : '☆';
+    set('stars', starsEl, stars);
+    // Health bar colour shifts green -> amber -> red.
+    const hp = Math.max(0, Math.min(100, s.health));
+    if (last.hp !== hp) {
+      last.hp = hp;
+      healthFill.style.width = hp + '%';
+      healthFill.style.background = hp > 55 ? '#37d67a' : hp > 25 ? '#ffb02e' : '#ff4040';
+    }
+    set('money', moneyEl, '$' + s.money);
+    set('rank', rankEl, `RANK ${s.rank} · ${s.rp} RP`);
+    set('standing', standEl, `${s.district} · STANDING ${s.standing}`);
+    set('mtitle', missionTitle, s.jobTitle);
+    set('mtext', missionText, s.jobText);
+    set('mstage', missionStage, `JOB ${Math.min(s.jobIndex + 1, 4)}/4`);
+    set('mnext', missionNext, 'NEXT: ' + s.nextTitle);
+    // Police panel: hidden at wanted 0, one live line per cruiser.
+    show('police', policeEl, s.wanted > 0 && s.policeLines.length > 0);
+    set('plines', policeList, s.policeLines.join('\n'));
+    set('dname', dialogName, s.speaker);
+    set('dtext', dialogText, s.story);
+    set('speed', speedEl, s.inCar ? `${Math.round(s.speedMph)} mph` : 'ON FOOT');
+    const arrow = s.compassDeg >= -45 && s.compassDeg < 45 ? '↑'
+      : s.compassDeg >= 45 && s.compassDeg < 135 ? '→'
+      : s.compassDeg >= 135 || s.compassDeg < -135 ? '↓' : '←';
+    set('compass', compassEl, `${arrow} ${Math.round(s.markerDist)}m`);
+    // Damage bar only in a car; radio line only in a car.
+    show('dmg', damageWrap, s.inCar);
+    if (s.inCar) {
+      const dg = Math.round(s.damage);
+      if (last.dmg !== dg) {
+        last.dmg = dg;
+        damageFill.style.width = dg + '%';
       }
-      set('money', `$${s.money}`);
-      set('rankline', `RANK ${s.rank} · ${s.rp} RP`);
-      set('districtline', `${s.district} · STANDING ${s.standing}`);
-      // Mission block.
-      set('jobtitle', s.jobTitle);
-      set('jobtext', s.jobText);
-      set('jobstage', `JOB ${s.jobIndex + 1}/4`);
-      set('jobnext', `NEXT: ${s.nextTitle}`);
-      // Police panel: one line per live unit, hidden at wanted 0.
-      show('policepanel', s.wanted > 0 && s.police.length > 0);
-      if (s.wanted > 0) {
-        set('policelines', s.police.map((p) => `${p.callsign} · ${p.role} · ${Math.round(p.dist)}m`).join('\n'));
-      }
-      // Dialogue box.
-      set('speaker', s.speaker);
-      set('dialogue', s.story);
-      // Speed + compass.
-      set('speed', s.inCar ? `${Math.round(Math.abs(s.speed) * 2.2)} mph` : 'ON FOOT');
-      const bearing = Math.atan2(s.marker.x - s.px, s.marker.z - s.pz);
-      const arrow = ['↑', '↗', '→', '↘', '↓', '↙', '←', '↖'][Math.round(((bearing - s.yaw) % (Math.PI * 2) + Math.PI * 2) / (Math.PI / 4)) % 8];
-      set('compass', `${arrow} ${Math.round(Math.hypot(s.marker.x - s.px, s.marker.z - s.pz))}m`);
-      // Car-only rows.
-      show('damagerow', s.inCar);
-      if (s.inCar) {
-        const dmg = Math.round(s.damage);
-        if (cache.dmg !== dmg) {
-          cache.dmg = dmg;
-          const d = el('damagefill');
-          if (d) {
-            d.style.width = `${dmg}%`;
-            d.style.background = dmg < 40 ? '#57d977' : dmg < 75 ? '#e8b23a' : '#e84a3a';
-          }
-        }
-        set('damagelabel', `DAMAGE ${dmg}%`);
-      }
-      show('radiorow', s.inCar);
-      if (s.inCar) set('radioline', `♪ ${s.station.name} — ${s.station.track}`);
-      // Banner.
-      show('banner', s.bannerT > 0);
-      if (s.bannerT > 0) set('banner', s.banner);
-      // Minimap, throttled.
-      miniT += dt;
-      if (miniT > 0.15) {
-        miniT = 0;
-        drawMinimap(s.px, s.pz, s.yaw, s.marker, s.traffic, s.police, s.peds);
-      }
-    },
-    showOverlay(id) {
-      for (const o of ['startov', 'pauseov', 'gameoverov', 'loadingov']) {
-        const n = el(o);
-        if (n) n.style.display = o === id ? 'flex' : 'none';
-      }
-    },
-    hideOverlays() {
-      for (const o of ['startov', 'pauseov', 'gameoverov', 'loadingov']) {
-        const n = el(o);
-        if (n) n.style.display = 'none';
-      }
-    },
-    setContinue(on, label) {
-      show('continuerow', on);
-      if (on) set('continuelabel', label);
-    },
-  };
+      set('dmgtext', damageText, `DAMAGE ${dg}%`);
+      set('radio', radioText, `♪ ${s.stationName} — ${s.stationTrack}`);
+    }
+    show('radio', radioWrap, s.inCar && s.radioOn);
+    set('sound', soundEl, s.muted ? 'SOUND OFF' : 'SOUND ON');
+    // Banner: mission complete, fades with its own timer.
+    show('banner', bannerEl, s.banner !== '');
+    set('banner', bannerEl, s.banner);
+    drawMinimap(s);
+  }
+
+  let miniTick = 0;
+  function drawMinimap(s) {
+    if (!ctx) return;
+    miniTick++;
+    if (miniTick % 3 !== 0 && last.mini === s.playerX + ',' + s.playerZ) return;
+    last.mini = s.playerX + ',' + s.playerZ;
+    const W = minimap.width;
+    const H = minimap.height;
+    const scale = W / (CITY_EDGE * 2 + 20);
+    const toX = (x) => (x + CITY_EDGE + 10) * scale;
+    const toZ = (z) => (z + CITY_EDGE + 10) * scale;
+    ctx.fillStyle = '#1c1424';
+    ctx.fillRect(0, 0, W, H);
+    ctx.strokeStyle = '#4a3a55';
+    ctx.lineWidth = 1;
+    for (const st of STREET_AT) {
+      ctx.beginPath();
+      ctx.moveTo(toX(st), 0);
+      ctx.lineTo(toX(st), H);
+      ctx.stroke();
+      ctx.beginPath();
+      ctx.moveTo(0, toZ(st));
+      ctx.lineTo(W, toZ(st));
+      ctx.stroke();
+    }
+    // Mission marker: gold ring.
+    ctx.strokeStyle = '#ffd21a';
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.arc(toX(s.markerX), toZ(s.markerZ), 5, 0, Math.PI * 2);
+    ctx.stroke();
+    // Traffic: pale dots. Police: red dots.
+    ctx.fillStyle = '#c8c8d8';
+    for (const [tx, tz] of s.trafficDots) ctx.fillRect(toX(tx) - 1, toZ(tz) - 1, 2, 2);
+    ctx.fillStyle = '#ff4040';
+    for (const [px, pz] of s.policeDots) {
+      ctx.beginPath();
+      ctx.arc(toX(px), toZ(pz), 2.5, 0, Math.PI * 2);
+      ctx.fill();
+    }
+    // Player arrow, pointing where the player faces.
+    const px = toX(s.playerX);
+    const pz = toZ(s.playerZ);
+    ctx.save();
+    ctx.translate(px, pz);
+    ctx.rotate(s.playerYaw);
+    ctx.fillStyle = '#ffffff';
+    ctx.beginPath();
+    ctx.moveTo(0, -6);
+    ctx.lineTo(4, 5);
+    ctx.lineTo(-4, 5);
+    ctx.closePath();
+    ctx.fill();
+    ctx.restore();
+  }
+
+  return { update };
 }

@@ -4,43 +4,39 @@
 
 # Neon Bay
 
-An original open-world crime game for make.fun's "Make GTA 6" bounty (https://make.fun/bounty/gta6-01). Built by an AI agent.
-
-Rico owes $1,200 to Vinnie "The Ledger" Marlow. Four jobs pay off the debt: the Pickup, the Drop, the Getaway, the Payoff. Steal cars, dodge the Neon Bay PD, and pay the debt before the sun sets on the city — in golden-hour light.
+An original open-world crime game built for make.fun's "Make GTA 6" bounty
+(gta6-01). Rico owes $1,200 to Vinnie "The Ledger" Marlow. Four jobs stand
+between him and freedom: a pickup, a drop, a getaway, and the payoff.
 
 ## Play
 
-Serve `game/` locally and open it in desktop Chrome:
+Serve it locally and open it in desktop Chrome:
 
 ```
 node serve.ts
 ```
 
-Then open http://localhost:8080. No build step, no network request: three.js r160 is vendored under `game/vendor/`, all art is procedural, all sound is synthesized WebAudio.
+Then open http://localhost:8080. WASD to move and drive, mouse drag to look,
+E to enter and exit cars, click to punch, Space to brake, M for the car radio,
+P to pause. Your money, mission progress and RP save in the browser.
 
-- WASD move, mouse drag to look
-- E steal / exit car
-- Click punch (punch only, no weapons)
-- Space brake, M radio, P pause
+## What is in the game
 
-## The game
+- A deterministic grid city at golden hour: lit windows, streetlights, palm
+  trees, traffic and pedestrians, all procedural (geometry + canvas textures).
+- Cars to steal and drive, with real collision damage. Police cruisers chase
+  the player at wanted levels 1-4, one cruiser per star, and ram when close.
+- Four story jobs with a named contact (Vinnie "The Ledger" Marlow, and Rico
+  himself for the getaway), a gold marker beam, and a MISSION COMPLETE banner.
+- Progression that is really computed: RP from job pay, rank letter from RP
+  thresholds, district standing from missions completed in that district.
+- A car radio with two stations of synthesized WebAudio, an engine hum, a
+  two-tone siren, and a localStorage save.
 
-- A seeded grid city: blocks, streets, lit windows, palms, streetlights
-- Traffic and pedestrians who flee
-- Police cruisers that chase and ram, one per wanted star, with a live police-response panel (callsigns, roles, distances)
-- Four story jobs with a gold marker, a mission banner, and a speaking character
-- Real progression: RP and rank rise with jobs, district standing changes, car damage is real, the car radio has two stations
-- Start screen, pause, game over, and a localStorage save
+## Tech
 
-## Layout
+Three.js r160 (vendored under `game/vendor/`), ES modules under `game/src/`,
+no build step, no network request at runtime. `main.ts` hands the game in
+with the kit's `vendor/makefun-game.ts` dossier builder.
 
-- `game/index.html` — the page, HUD, and overlays
-- `game/src/` — the game's own modules (city, hero, cars, crowd, police, jobs, HUD, shots)
-- `game/vendor/three.module.min.js` — three.js r160
-- `main.ts` — hands the game in (copies `game/` and `screenshots/`, writes `dossier.json`)
-- `serve.ts` — the local static server
-- `screenshots/` — four real renders of the game
-
-## License
-
-MIT. See LICENSE.
+Built with make.fun — https://make.fun
