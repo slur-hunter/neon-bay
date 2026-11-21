@@ -1,4 +1,5 @@
-# Neon Bay v9 — ignore build output and local files
+# Neon Bay v10 — build outputs and local tooling stay out of the repo.
 out/
 node_modules/
 .DS_Store
+*.log

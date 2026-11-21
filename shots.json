@@ -1,1 +1,1 @@
-{"shots":[{"file":"screenshots/1-start.jpg","name":"start","shot":1},{"file":"screenshots/2-drive.jpg","name":"drive","shot":2},{"file":"screenshots/3-chase.jpg","name":"chase","shot":3},{"file":"screenshots/4-mission.jpg","name":"mission","shot":4}]}
+[{"name":"1-start.jpg","query":"?shot=1"},{"name":"2-drive.jpg","query":"?shot=2"},{"name":"3-chase.jpg","query":"?shot=3"},{"name":"4-mission.jpg","query":"?shot=4"}]

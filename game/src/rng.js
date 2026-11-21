@@ -1,6 +1,6 @@
 // Seeded random numbers so the city is identical on every load.
-// Mulberry32: small, fast, deterministic. One seed, one city.
-export function makeRng(seed) {
+// mulberry32: a tiny, fast, deterministic PRNG.
+export function mulberry32(seed) {
   let a = seed >>> 0;
   return function next() {
     a |= 0;
@@ -11,14 +11,20 @@ export function makeRng(seed) {
   };
 }
 
-export function pick(rng, list) {
-  return list[Math.floor(rng() * list.length)];
-}
-
-export function range(rng, lo, hi) {
-  return lo + rng() * (hi - lo);
-}
-
-export function rangeInt(rng, lo, hi) {
-  return lo + Math.floor(rng() * (hi - lo + 1));
+export class Rng {
+  constructor(seed) {
+    this.next = mulberry32(seed);
+  }
+  range(a, b) {
+    return a + (b - a) * this.next();
+  }
+  int(a, b) {
+    return Math.floor(this.range(a, b + 1));
+  }
+  pick(list) {
+    return list[Math.floor(this.next() * list.length)];
+  }
+  chance(p) {
+    return this.next() < p;
+  }
 }
